@@ -1,8 +1,8 @@
-# Living Kitchen
+# Euko
 
 > Know what you have. Know what you can make. Know what you need.
 
-A clickable prototype of the "living kitchen" concept: an approximate,
+A clickable prototype of the Euko concept: an approximate,
 low-maintenance model of your kitchen that drives what you can cook, how
 recipes adapt to what's actually on hand, and what to buy next.
 
@@ -57,6 +57,5 @@ Useful scripts:
 
 ## Deploying
 
-`vite.config.ts` sets `base: '/living-kitchen/'` so a `npm run build` output
-can be served from `https://<user>.github.io/living-kitchen/` alongside the
-rest of this GitHub Pages site.
+`vite.config.ts` sets `base: '/'` so a `npm run build` output can be served
+from the domain root (currently a Vercel deployment).

@@ -203,7 +203,7 @@ export default function AddFood() {
                 ))}
               </div>
               <p className="text-xs text-ink/50">
-                Correcting an item teaches Living Kitchen how your store describes products.
+                Correcting an item teaches Euko how your store describes products.
               </p>
               <button
                 onClick={() => {

@@ -59,7 +59,7 @@ export default function AuthScreen() {
   return (
     <div className="flex min-h-full flex-col justify-center px-6 py-12">
       <div className="mb-8">
-        <p className="text-sm font-semibold uppercase tracking-wide text-clay">Living Kitchen</p>
+        <p className="text-sm font-semibold uppercase tracking-wide text-clay">Euko</p>
         <h1 className="mt-1 font-display text-3xl font-semibold text-ink">Welcome in.</h1>
         <p className="mt-2 text-ink/60">
           Sign in to keep your kitchen in sync. New here? Create an account — it takes a second.

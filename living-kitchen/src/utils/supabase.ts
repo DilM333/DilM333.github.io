@@ -18,8 +18,9 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
 
 /**
  * Absolute URL that Supabase confirmation / recovery links should return to.
- * Living Kitchen is served under the Vite base path (`/living-kitchen/`), so the
- * redirect must include it — `import.meta.env.BASE_URL` already has a trailing slash.
+ * Built from the Vite base path (`import.meta.env.BASE_URL`, currently `/`
+ * for the domain-root Vercel deployment) so this stays correct without
+ * changes if the base path ever moves again.
  */
 export function authRedirectTo(): string {
   return `${window.location.origin}${import.meta.env.BASE_URL}`

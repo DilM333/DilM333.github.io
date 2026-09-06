@@ -33,7 +33,7 @@ function Shell({ children, nav }: { children: ReactNode; nav?: ReactNode }) {
   )
 }
 
-function Splash({ label = 'Living Kitchen' }: { label?: string }) {
+function Splash({ label = 'Euko' }: { label?: string }) {
   return (
     <div className="flex min-h-full flex-col items-center justify-center gap-4 px-6">
       <span className="animate-pulse text-3xl">🍽️</span>

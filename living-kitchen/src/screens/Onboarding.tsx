@@ -62,7 +62,7 @@ export default function Onboarding() {
   return (
     <div className="flex flex-col gap-6 px-5 pb-10 pt-10">
       <div>
-        <p className="text-sm font-semibold uppercase tracking-wide text-clay">Living Kitchen</p>
+        <p className="text-sm font-semibold uppercase tracking-wide text-clay">Euko</p>
         <h1 className="font-display text-3xl font-semibold text-ink">Who are we feeding?</h1>
         <p className="mt-2 text-ink/60">
           Know what you have. Know what you can make. Know what you need.
