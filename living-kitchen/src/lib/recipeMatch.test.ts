@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { KitchenItem, Recipe, RecipeIngredient } from '../data/types'
-import { isIngredientAvailable, matchRecipe, matchStatusLabel, rankRecipes } from './recipeMatch'
+import {
+  isIngredientAvailable,
+  matchIngredient,
+  matchRecipe,
+  matchStatusLabel,
+  rankRecipes,
+} from './recipeMatch'
 
 function ing(overrides: Partial<RecipeIngredient> & Pick<RecipeIngredient, 'id' | 'name'>): RecipeIngredient {
   return { emoji: '🥕', quantity: '1', ...overrides }
@@ -174,5 +180,135 @@ describe('rankRecipes', () => {
     // Both zero-missing recipes tie on missing count (0) and match% (100),
     // so the name tie-break should put "A Recipe" before "Z Recipe".
     expect(ranked.map((m) => m.recipe.id)).toEqual(['a-recipe', 'z-recipe', 'one-missing'])
+  })
+})
+
+// Uses real seeded catalog relationships (see data/catalog.ts): yellow-onion
+// and red-onion are explicit substitutes of each other; green-onion and
+// shallot share the "onion" family but are deliberately NOT substitutes;
+// chicken-breast/chicken-thighs are a second, independent seeded pair.
+describe('matchIngredient', () => {
+  it('prefers the exact item over a substitute when both are in stock', () => {
+    const items = [
+      item({ id: 'red-onion', name: 'Red onion', stockType: 'divisible', fraction: 1 }),
+      item({ id: 'yellow-onion', name: 'Yellow Onion', stockType: 'divisible', fraction: 1 }),
+    ]
+    const result = matchIngredient(ing({ id: 'i1', name: 'Red onion', itemId: 'red-onion' }), items)
+    expect(result.kind).toBe('exact')
+    expect(result.matchedItem?.id).toBe('red-onion')
+    expect(result.substitutedFor).toBeUndefined()
+  })
+
+  it('falls back to an explicit substitute when the exact item is absent', () => {
+    const items = [item({ id: 'yellow-onion', name: 'Yellow Onion', stockType: 'divisible', fraction: 1 })]
+    const result = matchIngredient(ing({ id: 'i1', name: 'Red onion', itemId: 'red-onion' }), items)
+    expect(result.kind).toBe('substitute')
+    expect(result.matchedItem?.id).toBe('yellow-onion')
+    expect(result.substitutedFor).toBe('red-onion')
+  })
+
+  it('falls back to a substitute when the exact item exists but has zero stock', () => {
+    const items = [
+      item({ id: 'red-onion', name: 'Red onion', stockType: 'divisible', fraction: 0 }),
+      item({ id: 'yellow-onion', name: 'Yellow Onion', stockType: 'divisible', fraction: 1 }),
+    ]
+    const result = matchIngredient(ing({ id: 'i1', name: 'Red onion', itemId: 'red-onion' }), items)
+    expect(result.kind).toBe('substitute')
+    expect(result.matchedItem?.id).toBe('yellow-onion')
+  })
+
+  it('does not let an unrelated same-family item count unless it is an explicit substitute', () => {
+    const items = [
+      item({ id: 'green-onion', name: 'Green Onion', stockType: 'divisible', fraction: 1 }),
+      item({ id: 'shallot', name: 'Shallot', stockType: 'divisible', fraction: 1 }),
+    ]
+    const result = matchIngredient(ing({ id: 'i1', name: 'Red onion', itemId: 'red-onion' }), items)
+    expect(result.kind).toBe('missing')
+  })
+
+  it('is missing when neither the exact item nor any substitute is stocked', () => {
+    const result = matchIngredient(ing({ id: 'i1', name: 'Red onion', itemId: 'red-onion' }), [])
+    expect(result.kind).toBe('missing')
+    expect(result.matchedItem).toBeUndefined()
+  })
+
+  it('works for a second, independent seeded relationship (chicken breast/thighs)', () => {
+    const items = [item({ id: 'chicken-thighs', name: 'Chicken Thighs', count: 2 })]
+    const result = matchIngredient(ing({ id: 'i1', name: 'Chicken breast', itemId: 'chicken-breast' }), items)
+    expect(result.kind).toBe('substitute')
+    expect(result.matchedItem?.id).toBe('chicken-thighs')
+    expect(result.substitutedFor).toBe('chicken-breast')
+  })
+
+  it('an item with no configured substitutes simply falls through to missing', () => {
+    const result = matchIngredient(ing({ id: 'i1', name: 'Eggs', itemId: 'eggs' }), [])
+    expect(result.kind).toBe('missing')
+  })
+
+  it('still uses the existing case/whitespace-insensitive name fallback when there is no itemId', () => {
+    const items = [item({ id: 'ground-beef', name: 'Ground Beef', category: 'Meat' })]
+    const result = matchIngredient(ing({ id: 'i1', name: '  ground beef  ' }), items)
+    expect(result.kind).toBe('exact')
+    expect(result.matchedItem?.id).toBe('ground-beef')
+  })
+})
+
+describe('matchRecipe — substitute awareness', () => {
+  it('counts a recipe as ready via substitute and reports hasSubstitutions', () => {
+    const items = [item({ id: 'yellow-onion', name: 'Yellow Onion', stockType: 'divisible', fraction: 1 })]
+    const r = recipe({
+      id: 'onion-recipe',
+      ingredients: [ing({ id: 'i1', name: 'Red onion', itemId: 'red-onion' })],
+    })
+    const match = matchRecipe(r, items)
+    expect(match.isReady).toBe(true)
+    expect(match.requiredMissing).toBe(0)
+    expect(match.hasSubstitutions).toBe(true)
+    expect(match.ingredientMatches[0].kind).toBe('substitute')
+  })
+
+  it('hasSubstitutions is false when everything matches exactly', () => {
+    const items = [item({ id: 'red-onion', name: 'Red onion', stockType: 'divisible', fraction: 1 })]
+    const r = recipe({
+      id: 'exact-onion-recipe',
+      ingredients: [ing({ id: 'i1', name: 'Red onion', itemId: 'red-onion' })],
+    })
+    const match = matchRecipe(r, items)
+    expect(match.hasSubstitutions).toBe(false)
+    expect(match.isReady).toBe(true)
+    expect(match.ingredientMatches[0].kind).toBe('exact')
+  })
+
+  it('hasSubstitutions is false when the ingredient is simply missing', () => {
+    const r = recipe({
+      id: 'missing-onion-recipe',
+      ingredients: [ing({ id: 'i1', name: 'Red onion', itemId: 'red-onion' })],
+    })
+    const match = matchRecipe(r, [])
+    expect(match.hasSubstitutions).toBe(false)
+    expect(match.isReady).toBe(false)
+  })
+
+  it('an unrelated same-family item does not satisfy the recipe or count as a substitution', () => {
+    const items = [item({ id: 'shallot', name: 'Shallot', stockType: 'divisible', fraction: 1 })]
+    const r = recipe({
+      id: 'onion-recipe-2',
+      ingredients: [ing({ id: 'i1', name: 'Red onion', itemId: 'red-onion' })],
+    })
+    const match = matchRecipe(r, items)
+    expect(match.isReady).toBe(false)
+    expect(match.hasSubstitutions).toBe(false)
+  })
+
+  it('existing alias/name-based matching is unaffected by substitute awareness', () => {
+    const items = [item({ id: 'custom-dragonfruit-nectar', name: 'Dragonfruit Nectar', custom: true })]
+    const r = recipe({
+      id: 'name-only-recipe',
+      ingredients: [ing({ id: 'i1', name: 'Dragonfruit Nectar' })],
+    })
+    const match = matchRecipe(r, items)
+    expect(match.isReady).toBe(true)
+    expect(match.hasSubstitutions).toBe(false)
+    expect(match.ingredientMatches[0].kind).toBe('exact')
   })
 })

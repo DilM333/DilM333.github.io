@@ -21,6 +21,21 @@ export interface CatalogEntry {
    * canonical `name`, never the alias text.
    */
   aliases?: string[]
+  /**
+   * Loose grouping for related-but-distinct ingredients (e.g. "onion",
+   * "tomato", "chicken", "broth"). Classification only — it never implies
+   * two entries in the same family are safe to substitute for each other.
+   * See `substitutes` for the actual, explicit, approved swaps.
+   */
+  family?: string
+  /**
+   * Ids of other catalog entries that can reasonably stand in for this one
+   * when it's out of stock (e.g. yellow onion for red onion). Explicit and
+   * one-directional per entry — list both sides if a swap works both ways.
+   * Never inferred from `family`; a shared family does not make two
+   * ingredients interchangeable on its own.
+   */
+  substitutes?: string[]
 }
 
 export const catalogCategories = [
@@ -346,6 +361,35 @@ export function findEntryByName(
   return bestIn(customCatalog) ?? bestIn(catalog)
 }
 
+/**
+ * Identity resolution for a recipe ingredient with no `itemId` — exact
+ * canonical-name or declared-alias match only (rank 0/1), never `findEntryByName`'s
+ * partial/substring tiers. A recipe's free-text ingredient name (e.g.
+ * "Tomatoes") and a kitchen item's stored name (always a catalog entry's
+ * *canonical* name, e.g. "Tomato" — see `toKitchenItem`) can be the same
+ * real ingredient without being the same string; this resolves both to one
+ * canonical entry using only the curated alias list, the same data Add
+ * Food's search already trusts. Deliberately excludes substring matching —
+ * that's appropriate for a human skimming search results, not for silently
+ * deciding a recipe ingredient is "available".
+ */
+export function findEntryByExactName(
+  name: string,
+  customCatalog: CatalogEntry[] = [],
+): CatalogEntry | undefined {
+  const q = normalizeText(name)
+  if (!q) return undefined
+  const queryVariants = nameVariants(q)
+
+  const exactIn = (pool: CatalogEntry[]): CatalogEntry | undefined =>
+    pool.find((entry) => {
+      if (queryVariants.some((v) => nameVariants(entry.name).includes(v))) return true
+      return (entry.aliases ?? []).some((alias) => queryVariants.some((v) => nameVariants(alias).includes(v)))
+    })
+
+  return exactIn(customCatalog) ?? exactIn(catalog)
+}
+
 export function slugify(name: string): string {
   return name
     .trim()
@@ -385,17 +429,27 @@ export const catalog: CatalogEntry[] = [
   { id: 'yukon-potato', name: 'Yukon Gold Potato', emoji: '🥔', category: 'Produce', location: 'pantry', stockType: 'countable' },
   // Generic "Potatoes" — the id the seed kitchen/recipes already reference.
   { id: 'potatoes', name: 'Potatoes', emoji: '🥔', category: 'Produce', location: 'pantry', stockType: 'countable' },
-  { id: 'tomato', name: 'Tomato', emoji: '🍅', category: 'Produce', location: 'fridge', stockType: 'countable', aliases: ['tomatoes'] },
+  // Fresh vs. canned tomato — a genuinely common, high-confidence swap for
+  // cooked dishes (sauces, soups). See canned-tomatoes below for the reverse.
+  { id: 'tomato', name: 'Tomato', emoji: '🍅', category: 'Produce', location: 'fridge', stockType: 'countable', aliases: ['tomatoes'], family: 'tomato', substitutes: ['canned-tomatoes'] },
   { id: 'zucchini', name: 'Zucchini', emoji: '🥒', category: 'Produce', location: 'fridge', stockType: 'countable', aliases: ['courgette', 'courgettes'] },
   { id: 'cucumber', name: 'Cucumber', emoji: '🥒', category: 'Produce', location: 'fridge', stockType: 'countable' },
   { id: 'bell-pepper', name: 'Bell Pepper', emoji: '🫑', category: 'Produce', location: 'fridge', stockType: 'countable', aliases: ['capsicum', 'capsicums', 'sweet pepper', 'sweet peppers'] },
   { id: 'garlic', name: 'Garlic', emoji: '🧄', category: 'Produce', location: 'pantry', stockType: 'staple', aliases: ['garlic clove', 'garlic cloves', 'clove of garlic'] },
   { id: 'ginger', name: 'Ginger', emoji: '🫚', category: 'Produce', location: 'fridge', stockType: 'staple', aliases: ['ginger root', 'fresh ginger'] },
-  { id: 'yellow-onion', name: 'Yellow Onion', emoji: '🧅', category: 'Produce', location: 'pantry', stockType: 'divisible', aliases: ['white onion', 'white onions', 'yellow onions', 'brown onion', 'brown onions'] },
+  // Onion family: classification only. Yellow/red are commonly interchangeable
+  // as a cooked base, so they're each other's explicit substitute. Green onion
+  // is botanically an onion too (family: 'onion') but used raw as a garnish,
+  // not as a cooked aromatic base — deliberately NOT a substitute for either.
+  // "scallion"/"spring onion" are already aliases of this same entry, not a
+  // separate substitute relationship. Shallot is milder/distinct enough that
+  // we don't assume it's interchangeable either, even though it shares the
+  // family — it's just not a "high-confidence" swap on its own.
+  { id: 'yellow-onion', name: 'Yellow Onion', emoji: '🧅', category: 'Produce', location: 'pantry', stockType: 'divisible', aliases: ['white onion', 'white onions', 'yellow onions', 'brown onion', 'brown onions'], family: 'onion', substitutes: ['red-onion'] },
   // Canonical id/name kept exactly as the seed kitchen/recipes already use.
-  { id: 'red-onion', name: 'Red onion', emoji: '🧅', category: 'Produce', location: 'fridge', stockType: 'divisible', aliases: ['purple onion', 'purple onions', 'red onions'] },
-  { id: 'green-onion', name: 'Green Onion', emoji: '🌱', category: 'Produce', location: 'fridge', stockType: 'divisible', aliases: ['scallion', 'scallions', 'spring onion', 'spring onions'] },
-  { id: 'shallot', name: 'Shallot', emoji: '🧅', category: 'Produce', location: 'pantry', stockType: 'divisible', aliases: ['shallots'] },
+  { id: 'red-onion', name: 'Red onion', emoji: '🧅', category: 'Produce', location: 'fridge', stockType: 'divisible', aliases: ['purple onion', 'purple onions', 'red onions'], family: 'onion', substitutes: ['yellow-onion'] },
+  { id: 'green-onion', name: 'Green Onion', emoji: '🌱', category: 'Produce', location: 'fridge', stockType: 'divisible', aliases: ['scallion', 'scallions', 'spring onion', 'spring onions'], family: 'onion' },
+  { id: 'shallot', name: 'Shallot', emoji: '🧅', category: 'Produce', location: 'pantry', stockType: 'divisible', aliases: ['shallots'], family: 'onion' },
   { id: 'avocado', name: 'Avocado', emoji: '🥑', category: 'Produce', location: 'fridge', stockType: 'countable' },
   { id: 'lime', name: 'Lime', emoji: '🍈', category: 'Produce', location: 'fridge', stockType: 'countable' },
   { id: 'lemon', name: 'Lemon', emoji: '🍋', category: 'Produce', location: 'fridge', stockType: 'countable' },
@@ -417,8 +471,10 @@ export const catalog: CatalogEntry[] = [
   { id: 'blueberries', name: 'Blueberries', emoji: '🫐', category: 'Produce', location: 'fridge', stockType: 'divisible', aliases: ['blueberry'] },
 
   // --- Meat / protein --------------------------------------------------------
-  { id: 'chicken-breast', name: 'Chicken breast', emoji: '🍗', category: 'Meat', location: 'freezer', stockType: 'countable', aliases: ['chicken breasts'] },
-  { id: 'chicken-thighs', name: 'Chicken Thighs', emoji: '🍗', category: 'Meat', location: 'freezer', stockType: 'countable', aliases: ['chicken thigh'] },
+  // Breast/thigh are a widely-accepted "in a pinch" swap in most home
+  // recipes (cook time differs, but the dish still works).
+  { id: 'chicken-breast', name: 'Chicken breast', emoji: '🍗', category: 'Meat', location: 'freezer', stockType: 'countable', aliases: ['chicken breasts'], family: 'chicken', substitutes: ['chicken-thighs'] },
+  { id: 'chicken-thighs', name: 'Chicken Thighs', emoji: '🍗', category: 'Meat', location: 'freezer', stockType: 'countable', aliases: ['chicken thigh'], family: 'chicken', substitutes: ['chicken-breast'] },
   { id: 'ground-beef', name: 'Ground Beef', emoji: '🥩', category: 'Meat', location: 'fridge', stockType: 'container', aliases: ['minced beef', 'beef mince', 'hamburger meat'] },
   { id: 'ground-turkey', name: 'Ground Turkey', emoji: '🦃', category: 'Meat', location: 'fridge', stockType: 'container', aliases: ['minced turkey', 'turkey mince'] },
   { id: 'pork-chops', name: 'Pork Chops', emoji: '🥩', category: 'Meat', location: 'freezer', stockType: 'countable', aliases: ['pork chop'] },
@@ -452,14 +508,18 @@ export const catalog: CatalogEntry[] = [
   { id: 'tortillas', name: 'Tortillas', emoji: '🫓', category: 'Pantry', location: 'pantry', stockType: 'countable', aliases: ['tortilla'] },
 
   // --- Canned goods (existing "Pantry" category) -----------------------------
-  { id: 'canned-tomatoes', name: 'Canned Tomatoes', emoji: '🥫', category: 'Pantry', location: 'pantry', stockType: 'countable', aliases: ['crushed tomatoes', 'diced tomatoes'] },
+  { id: 'canned-tomatoes', name: 'Canned Tomatoes', emoji: '🥫', category: 'Pantry', location: 'pantry', stockType: 'countable', aliases: ['crushed tomatoes', 'diced tomatoes'], family: 'tomato', substitutes: ['tomato'] },
   { id: 'black-beans', name: 'Black Beans', emoji: '🫘', category: 'Pantry', location: 'pantry', stockType: 'countable' },
   { id: 'kidney-beans', name: 'Kidney Beans', emoji: '🫘', category: 'Pantry', location: 'pantry', stockType: 'countable' },
   { id: 'chickpeas', name: 'Chickpeas', emoji: '🫘', category: 'Pantry', location: 'pantry', stockType: 'countable', aliases: ['garbanzo beans', 'garbanzo bean', 'garbanzos'] },
   { id: 'canned-corn', name: 'Canned Corn', emoji: '🌽', category: 'Pantry', location: 'pantry', stockType: 'countable' },
   { id: 'canned-tuna', name: 'Canned Tuna', emoji: '🐟', category: 'Pantry', location: 'pantry', stockType: 'countable', aliases: ['tuna', 'tuna can'] },
-  { id: 'broth', name: 'Vegetable broth', emoji: '🥫', category: 'Pantry', location: 'pantry', stockType: 'container', aliases: ['vegetable stock'] },
-  { id: 'chicken-broth', name: 'Chicken Broth', emoji: '🥫', category: 'Pantry', location: 'pantry', stockType: 'container', aliases: ['chicken stock'] },
+  // Broth family: classification only, deliberately NOT substitutes of each
+  // other — several seed recipes are tagged vegetarian and rely on this
+  // being vegetable broth specifically, so treating chicken broth as an
+  // automatic stand-in would be an unsafe swap, not just a taste tradeoff.
+  { id: 'broth', name: 'Vegetable broth', emoji: '🥫', category: 'Pantry', location: 'pantry', stockType: 'container', aliases: ['vegetable stock'], family: 'broth' },
+  { id: 'chicken-broth', name: 'Chicken Broth', emoji: '🥫', category: 'Pantry', location: 'pantry', stockType: 'container', aliases: ['chicken stock'], family: 'broth' },
 
   // --- Baking (existing "Pantry" category) -----------------------------------
   { id: 'flour', name: 'Flour', emoji: '🌾', category: 'Pantry', location: 'pantry', stockType: 'staple', aliases: ['all purpose flour', 'all-purpose flour'] },

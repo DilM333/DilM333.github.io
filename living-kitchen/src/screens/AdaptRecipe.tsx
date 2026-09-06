@@ -2,14 +2,15 @@ import { useEffect, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import PageHeader from '../components/PageHeader'
 import { getGuidance, type ResolvedGuidance } from '../data/substitutions'
-import type { RecipeIngredient } from '../data/types'
+import type { KitchenItem, RecipeIngredient } from '../data/types'
 import { groceryItemForIngredient } from '../lib/grocery'
-import { findItem, ingredientStatus, itemDisplayAmount, type IngredientStatus } from '../lib/kitchen'
+import { ingredientStatus, itemDisplayAmount, type IngredientStatus } from '../lib/kitchen'
+import { matchIngredient } from '../lib/recipeMatch'
 import { type AdaptChoice, useKitchenStore } from '../store/useKitchenStore'
 
 type Kind = 'reserved' | 'missing' | 'low'
 
-function kindFor(item: ReturnType<typeof findItem>, status: IngredientStatus): Kind {
+function kindFor(item: KitchenItem | undefined, status: IngredientStatus): Kind {
   if (item && (item.reserved ?? 0) > 0 && status === 'low') return 'reserved'
   if (status === 'missing') return 'missing'
   return 'low'
@@ -136,7 +137,17 @@ export default function AdaptRecipe() {
   const problems = useMemo(() => {
     if (!recipe) return []
     return recipe.ingredients
-      .map((ing) => ({ ing, item: findItem(items, ing.itemId), status: ingredientStatus(ing, items) }))
+      .map((ing) => ({
+        ing,
+        // The item that actually resolved this ingredient — an approved
+        // substitute if that's what's stocked, not necessarily the exact
+        // itemId — so a 'low' substitute shows its own real quantity here
+        // instead of a stale/missing exact item's. A fully-stocked ('ok')
+        // substitute is filtered out below like any other resolved
+        // ingredient, never presented as an unresolved problem.
+        item: matchIngredient(ing, items).matchedItem,
+        status: ingredientStatus(ing, items),
+      }))
       .filter((p) => p.status !== 'ok')
   }, [recipe, items])
 

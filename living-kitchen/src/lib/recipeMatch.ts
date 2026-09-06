@@ -1,17 +1,47 @@
 import type { KitchenItem, Recipe, RecipeIngredient } from '../data/types'
-import { itemHasStock } from './kitchen'
+import {
+  matchIngredient,
+  quantityStatus,
+  usableAmount,
+  STAPLE_LEVEL_RANK,
+  type IngredientMatch,
+  type IngredientMatchKind,
+  type QuantityStatus,
+} from './kitchen'
+
+// The canonical exact/substitute/missing/quantity resolution engine lives in
+// lib/kitchen.ts (it needs `itemHasStock`, which this file already imports
+// *from* kitchen.ts — defining it here too would create a circular module
+// dependency). Re-exported here so this stays the file everything imports
+// recipe-matching concepts from.
+export {
+  matchIngredient,
+  quantityStatus,
+  usableAmount,
+  STAPLE_LEVEL_RANK,
+  type IngredientMatch,
+  type IngredientMatchKind,
+  type QuantityStatus,
+}
 
 /**
  * Finds the kitchen item behind a recipe ingredient. When the ingredient has
- * a stable `itemId` (how most seed recipes are wired), that's the only
+ * a stable `itemId` (how every seed recipe ingredient is wired as of Phase
+ * 2.0's identity fix — see kitchen.ts's `matchIngredient`), that's the only
  * lookup — matching lib/kitchen.ts's `findItem` exactly, so this never
  * disagrees with the app's existing feasibility display for the common case.
- * Only ingredients with no itemId at all (e.g. "Ground beef" in
- * beef-bolognese, which the existing app already always reports as
- * "missing" regardless of kitchen contents) fall back to a
- * case/whitespace-insensitive name match — the same normalization
- * `deriveIdentity` (kitchenSync.ts) and `findEntryByName` (catalog.ts) use —
- * so custom ingredients and other name-only ingredients can still match.
+ * Ingredients with no itemId at all (a truly custom/free-text ingredient
+ * with no catalog entry) fall back to a case/whitespace-insensitive name
+ * match — the same normalization `deriveIdentity` (kitchenSync.ts) uses.
+ * Unlike `matchIngredient`'s equivalent fallback, this does not also try
+ * `findEntryByExactName`'s canonical/alias resolution — this function is
+ * legacy/unused outside its own tests; `matchIngredient` is the maintained
+ * path for real ingredient resolution.
+ *
+ * Deliberately NOT substitute-aware — this stays the exact-identity lookup
+ * lib/kitchen.ts's `findItem` also uses. `matchIngredient` is the
+ * substitute-aware resolution; use that when a same-family stand-in should
+ * count.
  */
 export function findMatchingKitchenItem(
   ingredient: RecipeIngredient,
@@ -24,10 +54,13 @@ export function findMatchingKitchenItem(
   return items.find((i) => i.name.trim().toLowerCase() === nameLower)
 }
 
-/** Presence/absence only — no quantity matching in this MVP. */
+/**
+ * Presence/absence only — no quantity matching in this MVP. An explicit
+ * catalog substitute counts as available, same as an exact match; a random
+ * same-family item that isn't listed as a substitute does not.
+ */
 export function isIngredientAvailable(ingredient: RecipeIngredient, items: KitchenItem[]): boolean {
-  const item = findMatchingKitchenItem(ingredient, items)
-  return !!item && itemHasStock(item)
+  return matchIngredient(ingredient, items).kind !== 'missing'
 }
 
 export interface RecipeMatch {
@@ -35,7 +68,7 @@ export interface RecipeMatch {
   requiredTotal: number
   requiredAvailable: number
   requiredMissing: number
-  /** Required ingredients currently in the kitchen. */
+  /** Required ingredients currently in the kitchen (exact or approved substitute). */
   availableIngredients: RecipeIngredient[]
   /** Required ingredients not currently in the kitchen. */
   missingIngredients: RecipeIngredient[]
@@ -45,8 +78,16 @@ export interface RecipeMatch {
   missingOptionalIngredients: RecipeIngredient[]
   /** available required / total required, 0-100. 100 if the recipe has no required ingredients. */
   matchPercent: number
-  /** True when every required ingredient is available. */
+  /** True when every required ingredient is available (exact or approved substitute). */
   isReady: boolean
+  /**
+   * True only when at least one *required* ingredient was satisfied via an
+   * explicit substitute rather than an exact match — groundwork for a future
+   * "Ready with adjustment" UI state. Not yet surfaced anywhere in the UI.
+   */
+  hasSubstitutions: boolean
+  /** Per-ingredient match detail (required + optional), exact/substitute/missing. */
+  ingredientMatches: IngredientMatch[]
 }
 
 /** Deterministic, presence/absence match of one recipe against the current kitchen. */
@@ -55,13 +96,18 @@ export function matchRecipe(recipe: Recipe, items: KitchenItem[]): RecipeMatch {
   const missingIngredients: RecipeIngredient[] = []
   const availableOptionalIngredients: RecipeIngredient[] = []
   const missingOptionalIngredients: RecipeIngredient[] = []
+  const ingredientMatches: IngredientMatch[] = []
+  let hasSubstitutions = false
 
   for (const ingredient of recipe.ingredients) {
-    const available = isIngredientAvailable(ingredient, items)
+    const match = matchIngredient(ingredient, items)
+    ingredientMatches.push(match)
+    const available = match.kind !== 'missing'
     if (ingredient.optional) {
       ;(available ? availableOptionalIngredients : missingOptionalIngredients).push(ingredient)
     } else {
       ;(available ? availableIngredients : missingIngredients).push(ingredient)
+      if (match.kind === 'substitute') hasSubstitutions = true
     }
   }
 
@@ -81,6 +127,8 @@ export function matchRecipe(recipe: Recipe, items: KitchenItem[]): RecipeMatch {
     missingOptionalIngredients,
     matchPercent,
     isReady: requiredMissing === 0,
+    hasSubstitutions,
+    ingredientMatches,
   }
 }
 

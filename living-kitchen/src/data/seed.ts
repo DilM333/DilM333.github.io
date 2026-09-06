@@ -206,7 +206,15 @@ export const seedRecipes: Recipe[] = [
       'Pan-seared chicken breast with crisp potatoes and fresh herbs.',
     ingredients: [
       { id: 'i1', name: 'Chicken breast', emoji: '🍗', quantity: '2 pieces', itemId: 'chicken-breast' },
-      { id: 'i2', name: 'Potatoes', emoji: '🥔', quantity: '4', itemId: 'potatoes' },
+      {
+        id: 'i2',
+        name: 'Potatoes',
+        emoji: '🥔',
+        quantity: '4',
+        itemId: 'potatoes',
+        requiredAmount: 4,
+        requiredUnit: 'count',
+      },
       { id: 'i3', name: 'Parsley', emoji: '🌿', quantity: '2 tbsp, chopped', itemId: 'parsley' },
       { id: 'i4', name: 'Olive oil', emoji: '🫒', quantity: '2 tbsp', itemId: 'olive-oil' },
       { id: 'i5', name: 'Salt', emoji: '🧂', quantity: 'to taste', itemId: 'salt' },
@@ -235,7 +243,15 @@ export const seedRecipes: Recipe[] = [
       { id: 'i2', name: 'Eggs', emoji: '🥚', quantity: '3', itemId: 'eggs' },
       { id: 'i3', name: 'Carrots', emoji: '🥕', quantity: '2, diced', itemId: 'carrots' },
       { id: 'i4', name: 'Corn', emoji: '🌽', quantity: '1 cup', itemId: 'corn' },
-      { id: 'i5', name: 'Red onion', emoji: '🧅', quantity: '¼', itemId: 'red-onion' },
+      {
+        id: 'i5',
+        name: 'Red onion',
+        emoji: '🧅',
+        quantity: '¼',
+        itemId: 'red-onion',
+        requiredAmount: 0.25,
+        requiredUnit: 'fraction',
+      },
     ],
     steps: [
       { instruction: 'Dice onion and carrots.' },
@@ -279,7 +295,18 @@ export const seedRecipes: Recipe[] = [
     description: 'Bright, creamy orzo finished with lemon and parmesan.',
     ingredients: [
       { id: 'i1', name: 'Orzo', emoji: '🍝', quantity: '1 cup', itemId: 'orzo' },
-      { id: 'i2', name: 'Vegetable broth', emoji: '🥫', quantity: '2 cups', itemId: 'broth' },
+      {
+        id: 'i2',
+        name: 'Vegetable broth',
+        emoji: '🥫',
+        quantity: '2 cups',
+        itemId: 'broth',
+        // Approximate: a typical vegetable broth carton is ~4 cups, so "2
+        // cups" is treated as needing about half a full container. This is
+        // a deliberate approximation, not a precise volume conversion.
+        requiredAmount: 0.5,
+        requiredUnit: 'fill',
+      },
       { id: 'i3', name: 'Parmesan', emoji: '🧀', quantity: '¼ cup', itemId: 'parmesan' },
       { id: 'i4', name: 'Lemon', emoji: '🍋', quantity: '1', itemId: 'lemon' },
     ],
@@ -300,9 +327,20 @@ export const seedRecipes: Recipe[] = [
     tags: ['comforting'],
     description: 'A slow-simmered classic beef and tomato ragu.',
     ingredients: [
-      { id: 'i1', name: 'Ground beef', emoji: '🥩', quantity: '1 lb' },
-      { id: 'i2', name: 'Pasta', emoji: '🍝', quantity: '1 box', itemId: 'pasta' },
-      { id: 'i3', name: 'Tomatoes', emoji: '🍅', quantity: '1 can' },
+      { id: 'i1', name: 'Ground beef', emoji: '🥩', quantity: '1 lb', itemId: 'ground-beef' },
+      {
+        id: 'i2',
+        name: 'Pasta',
+        emoji: '🍝',
+        quantity: '1 box',
+        itemId: 'pasta',
+        // Coarse ordinal requirement on the same 0(out)..3(plenty) scale as
+        // STAPLE_LEVEL_RANK — "1 box" isn't a precise amount, so this reads
+        // as "needs a solidly-stocked pantry level," not a literal count.
+        requiredAmount: 3,
+        requiredUnit: 'level',
+      },
+      { id: 'i3', name: 'Tomatoes', emoji: '🍅', quantity: '1 can', itemId: 'tomato' },
       { id: 'i4', name: 'Red onion', emoji: '🧅', quantity: '½', itemId: 'red-onion' },
       { id: 'i5', name: 'Carrots', emoji: '🥕', quantity: '2', itemId: 'carrots' },
       { id: 'i6', name: 'Parmesan', emoji: '🧀', quantity: 'to finish', itemId: 'parmesan' },
@@ -351,10 +389,19 @@ export const seedRecipes: Recipe[] = [
     tags: ['comforting'],
     description: 'Classic soft sugar cookies.',
     ingredients: [
-      { id: 'i1', name: 'Butter', emoji: '🧈', quantity: '1 cup', itemId: 'butter' },
+      {
+        id: 'i1',
+        name: 'Butter',
+        emoji: '🧈',
+        quantity: '1 cup',
+        itemId: 'butter',
+        // Same coarse staple-level scale as the pasta requirement above.
+        requiredAmount: 2,
+        requiredUnit: 'level',
+      },
       { id: 'i2', name: 'Eggs', emoji: '🥚', quantity: '2', itemId: 'eggs' },
-      { id: 'i3', name: 'Flour', emoji: '🌾', quantity: '3 cups' },
-      { id: 'i4', name: 'Sugar', emoji: '🍬', quantity: '1 cup' },
+      { id: 'i3', name: 'Flour', emoji: '🌾', quantity: '3 cups', itemId: 'flour' },
+      { id: 'i4', name: 'Sugar', emoji: '🍬', quantity: '1 cup', itemId: 'sugar' },
     ],
     steps: [
       { instruction: 'Cream butter and sugar.' },
@@ -397,7 +444,16 @@ export const seedRecipes: Recipe[] = [
     description: 'A one-pot dinner of seared chicken over savory rice.',
     ingredients: [
       { id: 'i1', name: 'Chicken breast', emoji: '🍗', quantity: '2 pieces', itemId: 'chicken-breast' },
-      { id: 'i2', name: 'Rice', emoji: '🍚', quantity: '1 cup', itemId: 'rice' },
+      {
+        id: 'i2',
+        name: 'Rice',
+        emoji: '🍚',
+        quantity: '1 cup',
+        itemId: 'rice',
+        // Same coarse staple-level scale as the other seeded staples.
+        requiredAmount: 2,
+        requiredUnit: 'level',
+      },
       { id: 'i3', name: 'Vegetable broth', emoji: '🥫', quantity: '2 cups', itemId: 'broth' },
       { id: 'i4', name: 'Carrots', emoji: '🥕', quantity: '1, diced', itemId: 'carrots' },
       { id: 'i5', name: 'Salt', emoji: '🧂', quantity: 'to taste', itemId: 'salt' },
@@ -444,7 +500,17 @@ export const seedRecipes: Recipe[] = [
     description: 'A simple sheet-pan side of caramelized roasted vegetables.',
     ingredients: [
       { id: 'i1', name: 'Carrots', emoji: '🥕', quantity: '2, chopped', itemId: 'carrots' },
-      { id: 'i2', name: 'Red onion', emoji: '🧅', quantity: '1, wedged', itemId: 'red-onion' },
+      {
+        id: 'i2',
+        name: 'Red onion',
+        emoji: '🧅',
+        quantity: '1, wedged',
+        itemId: 'red-onion',
+        // Whole onion, same whole+quarter decimal convention as
+        // KitchenItem.fraction.
+        requiredAmount: 1,
+        requiredUnit: 'fraction',
+      },
       { id: 'i3', name: 'Zucchini', emoji: '🥒', quantity: '1, sliced', itemId: 'zucchini' },
       { id: 'i4', name: 'Bell Pepper', emoji: '🫑', quantity: '1, sliced', itemId: 'bell-pepper' },
       { id: 'i5', name: 'Olive oil', emoji: '🫒', quantity: '2 tbsp', itemId: 'olive-oil' },

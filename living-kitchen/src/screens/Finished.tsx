@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import PageHeader from '../components/PageHeader'
-import { findItem, itemDisplayAmount, stockLevel } from '../lib/kitchen'
+import { itemDisplayAmount, stockLevel } from '../lib/kitchen'
+import { matchIngredient } from '../lib/recipeMatch'
 import { groceryItemForKitchenItem } from '../lib/grocery'
 import { suggestDeduction } from '../lib/deduction'
 import { useKitchenStore, type KitchenDeduction } from '../store/useKitchenStore'
@@ -22,15 +23,21 @@ export default function Finished() {
   const groceryList = useKitchenStore((s) => s.groceryList)
   const addToGroceryList = useKitchenStore((s) => s.addToGroceryList)
 
+  // Substitute-aware: an ingredient satisfied by an approved substitute (not
+  // the exact itemId) is still trackable here, and deductions come off the
+  // actual matched kitchen item — never the (unstocked) exact item it stood
+  // in for. `actualUsage` stays keyed by the recipe ingredient's original
+  // itemId regardless of which item ends up matched, so that lookup is
+  // unaffected by this.
   const trackable = useMemo(
-    () => (recipe ? recipe.ingredients.filter((i) => i.itemId && findItem(items, i.itemId)) : []),
+    () => (recipe ? recipe.ingredients.filter((i) => matchIngredient(i, items).matchedItem) : []),
     [recipe, items],
   )
 
   const initialDeductions = useMemo(() => {
     const map: Record<string, KitchenDeduction> = {}
     trackable.forEach((ing) => {
-      const item = findItem(items, ing.itemId)!
+      const item = matchIngredient(ing, items).matchedItem!
       const used = cookingSession?.actualUsage[ing.itemId!]
       map[item.id] = suggestDeduction(item, used ?? 1)
     })
@@ -58,7 +65,7 @@ export default function Finished() {
   const onList = (name: string) => groceryList.some((g) => g.name === name)
 
   const lowAfter = trackable
-    .map((ing) => findItem(items, ing.itemId)!)
+    .map((ing) => matchIngredient(ing, items).matchedItem!)
     .filter((item) => stockLevel(afterItem(item)) !== 'ok')
 
   const toAdd = lowAfter.filter((item) => !onList(item.name))
@@ -79,7 +86,7 @@ export default function Finished() {
 
       <div className="flex flex-col gap-2 px-5">
         {trackable.map((ing) => {
-          const item = findItem(items, ing.itemId)!
+          const item = matchIngredient(ing, items).matchedItem!
           const deduction = deductions[item.id]
           const before = itemDisplayAmount(item)
           const next = afterItem(item)

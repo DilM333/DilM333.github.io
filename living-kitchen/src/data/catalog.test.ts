@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   catalog,
+  findEntryByExactName,
   findEntryByName,
   makeCustomCatalogEntry,
   searchCatalog,
@@ -89,6 +90,47 @@ describe('findEntryByName — canonical and alias matching', () => {
     const match = findEntryByName('purple onion', [custom])
     expect(match?.id).toBe(custom.id)
     expect(match?.custom).toBe(true)
+  })
+})
+
+describe('findEntryByExactName — exact canonical/alias only, no substring guessing', () => {
+  it('resolves the exact bug this exists for: "Tomatoes" (recipe text) -> the "Tomato" canonical entry', () => {
+    expect(findEntryByExactName('Tomatoes')?.id).toBe('tomato')
+    expect(findEntryByExactName('tomatoes')?.name).toBe('Tomato')
+  })
+
+  it('matches the canonical name exactly, case-insensitively', () => {
+    expect(findEntryByExactName('red onion')?.id).toBe('red-onion')
+    expect(findEntryByExactName('RED ONION')?.id).toBe('red-onion')
+  })
+
+  it('matches a declared alias exactly', () => {
+    expect(findEntryByExactName('purple onion')?.id).toBe('red-onion')
+    expect(findEntryByExactName('scallion')?.id).toBe('green-onion')
+  })
+
+  it('does not fall back to substring/partial matching, unlike findEntryByName', () => {
+    // "onion" alone is a substring of several canonical names/aliases, so
+    // findEntryByName's partial tiers can resolve it (rank 2/3) — this
+    // stricter function must not, since it backs automatic recipe-status
+    // resolution rather than a human-reviewed search list.
+    expect(findEntryByExactName('onion')).toBeUndefined()
+  })
+
+  it("a user's own custom ingredient is preferred over a same-named built-in entry", () => {
+    const custom = makeCustomCatalogEntry({
+      name: 'Purple Onion',
+      category: 'Produce',
+      location: 'fridge',
+      stockType: 'divisible',
+    })
+    const match = findEntryByExactName('purple onion', [custom])
+    expect(match?.id).toBe(custom.id)
+  })
+
+  it('returns undefined for something with no exact match', () => {
+    expect(findEntryByExactName('quantum flapdoodle')).toBeUndefined()
+    expect(findEntryByExactName('')).toBeUndefined()
   })
 })
 

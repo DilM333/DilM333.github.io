@@ -39,13 +39,38 @@ export interface KitchenItem {
   remoteId?: string
 }
 
+/**
+ * Which KitchenItem quantity field a structured recipe requirement is
+ * expressed in — mirrors StockType so `requiredAmount` is always compared
+ * against the matching kitchen field, never across stock types.
+ */
+export type RequiredUnit = 'count' | 'fraction' | 'fill' | 'level'
+
 export interface RecipeIngredient {
   id: string
   name: string
   emoji: string
+  /** Human-readable display text, e.g. "2, diced" — always shown as-is, never derived from the fields below. */
   quantity: string
   itemId?: string
   optional?: boolean
+  /**
+   * Machine-readable amount this recipe needs, alongside the display
+   * `quantity` string above. Deliberately unset for most ingredients —
+   * absence means "no structured requirement," which callers must treat as
+   * plain presence/absence (the pre-existing behavior), never as "needs
+   * zero." Only seeded where a real comparison is possible and honest:
+   *   - count:    whole units for countable items, e.g. 3 eggs -> 3
+   *   - fraction: same whole+quarter decimal convention as KitchenItem.fraction
+   *               for divisible items, e.g. "½ onion" -> 0.5
+   *   - fill:     approximate portion (0..1) of a full container item —
+   *               only when a reasonable approximation genuinely exists
+   *   - level:    coarse ordinal requirement for staple items, on the same
+   *               0(out)..3(plenty) scale as STAPLE_LEVEL_RANK (lib/kitchen.ts)
+   *               — never a fake precise number for something like "salt to taste"
+   */
+  requiredAmount?: number
+  requiredUnit?: RequiredUnit
 }
 
 export interface RecipeStep {
