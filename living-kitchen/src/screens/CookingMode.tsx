@@ -36,7 +36,7 @@ export default function CookingMode() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-ink text-cream">
+    <div className="flex min-h-full flex-col bg-ink text-cream">
       <div className="flex items-center justify-between px-5 pt-6">
         <button onClick={close} aria-label="Close cooking mode" className="text-2xl text-cream/70">
           ×

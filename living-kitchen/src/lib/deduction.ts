@@ -1,7 +1,6 @@
 import type { KitchenItem, StapleLevel } from '../data/types'
 import type { KitchenDeduction } from '../store/useKitchenStore'
 
-const FRACTION_STEPS = [1, 0.75, 0.5, 0.25, 0]
 const LEVEL_STEPS: StapleLevel[] = ['plenty', 'some', 'low', 'out']
 
 export function suggestDeduction(item: KitchenItem, usedUnits: number): KitchenDeduction {
@@ -9,10 +8,11 @@ export function suggestDeduction(item: KitchenItem, usedUnits: number): KitchenD
     case 'countable':
       return { itemId: item.id, newCount: Math.max(0, (item.count ?? 0) - usedUnits) }
     case 'divisible': {
+      // One cooking step uses about a quarter of the item, regardless of how
+      // many whole units are on hand — e.g. 2 3/4 onions -> 2 1/2 onions.
       const current = item.fraction ?? 0
-      const idx = FRACTION_STEPS.findIndex((f) => f <= current + 0.001)
-      const nextIdx = Math.min(FRACTION_STEPS.length - 1, idx + 1)
-      return { itemId: item.id, newFraction: FRACTION_STEPS[nextIdx] }
+      const next = Math.max(0, Math.round((current - 0.25) * 4) / 4)
+      return { itemId: item.id, newFraction: next }
     }
     case 'container':
       return { itemId: item.id, newFill: Math.max(0, (item.fill ?? 0) - 0.15) }

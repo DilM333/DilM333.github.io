@@ -1,8 +1,12 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import EmptyState from '../components/EmptyState'
 import PageHeader from '../components/PageHeader'
 import RecipeCard from '../components/RecipeCard'
+import SectionHeader from '../components/SectionHeader'
 import type { Effort } from '../data/types'
 import { computeFeasibility } from '../lib/kitchen'
+import { rankRecipes } from '../lib/recipeMatch'
 import { useKitchenStore } from '../store/useKitchenStore'
 
 const MOODS = [
@@ -29,9 +33,8 @@ const EFFORT_OPTIONS: { key: Effort | null; label: string }[] = [
   { key: null, label: "Doesn't matter" },
 ]
 
-const FEASIBILITY_ORDER = ['ready', 'ready-adjusted', 'almost', 'one-away', 'needs-shopping']
-
 export default function WhatCanIMake() {
+  const navigate = useNavigate()
   const items = useKitchenStore((s) => s.items)
   const recipes = useKitchenStore((s) => s.recipes)
   const [moods, setMoods] = useState<string[]>([])
@@ -48,17 +51,32 @@ export default function WhatCanIMake() {
     if (time) list = list.filter((r) => r.time <= time)
     if (effort) list = list.filter((r) => r.effort === effort)
 
-    const withStatus = list.map((r) => ({ recipe: r, status: computeFeasibility(r, items).status }))
-    const filtered = hideRed ? withStatus.filter((c) => c.status !== 'needs-shopping') : withStatus
+    // Ranked deterministically by fewest missing required ingredients, then
+    // match %, then name (see lib/recipeMatch.ts). The "hide what I can't
+    // make" toggle still uses the richer, quantity-aware feasibility status
+    // from lib/kitchen.ts, unchanged from before.
+    const ranked = rankRecipes(list, items)
+    const filtered = hideRed
+      ? ranked.filter((m) => computeFeasibility(m.recipe, items).status !== 'needs-shopping')
+      : ranked
 
-    return filtered.sort(
-      (a, b) => FEASIBILITY_ORDER.indexOf(a.status) - FEASIBILITY_ORDER.indexOf(b.status),
-    )
+    return filtered.map((m) => ({ recipe: m.recipe }))
   }, [recipes, items, moods, time, effort, hideRed])
 
   return (
     <div className="flex flex-col gap-5 pb-6">
-      <PageHeader title="What can I make?" subtitle="Tonight I'm feeling…" />
+      <PageHeader
+        title="What can I make?"
+        subtitle="Tonight I'm feeling…"
+        right={
+          <button
+            onClick={() => navigate('/assistant')}
+            className="flex items-center gap-1.5 rounded-full bg-ink px-3 py-2 text-xs font-bold text-cream shadow-soft"
+          >
+            🤖 Ask
+          </button>
+        }
+      />
 
       <div className="flex flex-wrap gap-2 px-5">
         {MOODS.map((m) => (
@@ -77,7 +95,7 @@ export default function WhatCanIMake() {
       </div>
 
       <div className="flex flex-col gap-2 px-5">
-        <p className="text-xs font-bold uppercase tracking-wide text-ink/40">Time</p>
+        <SectionHeader>Time</SectionHeader>
         <div className="flex flex-wrap gap-2">
           {TIME_OPTIONS.map((t) => (
             <button
@@ -94,7 +112,7 @@ export default function WhatCanIMake() {
       </div>
 
       <div className="flex flex-col gap-2 px-5">
-        <p className="text-xs font-bold uppercase tracking-wide text-ink/40">Effort</p>
+        <SectionHeader>Effort</SectionHeader>
         <div className="flex flex-wrap gap-2">
           {EFFORT_OPTIONS.map((e) => (
             <button
@@ -111,9 +129,9 @@ export default function WhatCanIMake() {
       </div>
 
       <div className="flex items-center justify-between px-5">
-        <p className="text-xs font-bold uppercase tracking-wide text-ink/40">
+        <SectionHeader>
           {cards.length} recipe{cards.length === 1 ? '' : 's'}
-        </p>
+        </SectionHeader>
         <label className="flex items-center gap-1.5 text-xs font-semibold text-ink/60">
           <input
             type="checkbox"
@@ -130,7 +148,11 @@ export default function WhatCanIMake() {
           <RecipeCard key={recipe.id} recipe={recipe} items={items} />
         ))}
         {cards.length === 0 && (
-          <p className="text-sm text-ink/50">No recipes match these filters yet.</p>
+          <EmptyState
+            icon="🍳"
+            title="No recipes match these filters"
+            hint="Try clearing a filter or two — or ask the assistant what to make."
+          />
         )}
       </div>
     </div>

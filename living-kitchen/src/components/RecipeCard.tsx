@@ -1,6 +1,10 @@
+import type { KeyboardEvent, MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { KitchenItem, Recipe } from '../data/types'
+import { groceryItemForIngredient } from '../lib/grocery'
 import { computeFeasibility, isUseSoon } from '../lib/kitchen'
+import { matchRecipe, matchStatusLabel } from '../lib/recipeMatch'
+import { useKitchenStore } from '../store/useKitchenStore'
 import StatusPill from './StatusPill'
 
 interface Props {
@@ -10,11 +14,22 @@ interface Props {
 
 export default function RecipeCard({ recipe, items }: Props) {
   const navigate = useNavigate()
+  const groceryList = useKitchenStore((s) => s.groceryList)
+  const addToGroceryList = useKitchenStore((s) => s.addToGroceryList)
   const { status, missing, low } = computeFeasibility(recipe, items)
+  const match = matchRecipe(recipe, items)
   const useSoonIngredients = recipe.ingredients.filter((ing) => {
     const item = items.find((i) => i.id === ing.itemId)
     return item && isUseSoon(item)
   })
+
+  const shortNotOnList = missing.filter((ing) => !groceryList.some((g) => g.name === ing.name))
+  const alreadyAdded = missing.length > 0 && shortNotOnList.length === 0
+
+  const addMissing = (e: MouseEvent | KeyboardEvent) => {
+    e.stopPropagation()
+    shortNotOnList.forEach((ing) => addToGroceryList(groceryItemForIngredient(ing, `For ${recipe.name}`)))
+  }
 
   let detail: string | null = null
   if (status === 'ready') {
@@ -44,6 +59,17 @@ export default function RecipeCard({ recipe, items }: Props) {
         <span>{recipe.time} min</span>
         <span>•</span>
         <span>{recipe.effortLabel}</span>
+        {match.requiredTotal > 0 && (
+          <>
+            <span>•</span>
+            <span
+              className={match.isReady ? 'font-semibold text-leaf' : undefined}
+              title={matchStatusLabel(match)}
+            >
+              {match.requiredAvailable}/{match.requiredTotal} ingredients
+            </span>
+          </>
+        )}
       </div>
       {useSoonIngredients.length > 0 && (
         <div className="flex flex-wrap gap-1.5 pt-1">
@@ -55,6 +81,27 @@ export default function RecipeCard({ recipe, items }: Props) {
               Uses soon: {ing.emoji} {ing.name}
             </span>
           ))}
+        </div>
+      )}
+      {missing.length > 0 && (
+        <div className="pt-1">
+          {alreadyAdded ? (
+            <span className="inline-flex items-center rounded-full bg-leaf/10 px-3 py-1 text-xs font-bold text-leaf">
+              ✓ Missing items on grocery list
+            </span>
+          ) : (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={addMissing}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') addMissing(e)
+              }}
+              className="inline-flex cursor-pointer items-center rounded-full bg-ink px-3 py-1 text-xs font-bold text-cream"
+            >
+              + Add {shortNotOnList.length} missing to grocery list
+            </span>
+          )}
         </div>
       )}
     </button>

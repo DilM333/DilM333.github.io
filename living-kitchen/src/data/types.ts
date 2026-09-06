@@ -13,7 +13,11 @@ export interface KitchenItem {
   category: string
   /** countable: whole units, e.g. 4 eggs */
   count?: number
-  /** divisible produce: 0..1 (quarter/half/three-quarter/whole) */
+  /**
+   * divisible produce: total quantity as a whole number plus an optional
+   * quarter/half/three-quarter remainder, e.g. 1.5 = "1 1/2", 2.75 = "2 3/4".
+   * Stored as a single decimal — see wholeOf/fracPartOf in lib/kitchen.ts.
+   */
   fraction?: number
   /** container: 0..1 fill level, e.g. milk carton */
   fill?: number
@@ -23,6 +27,16 @@ export interface KitchenItem {
   reserved?: number
   reservedFor?: string
   daysSincePurchase?: number
+  /** optional estimated price the user entered when adding a custom ingredient */
+  estPrice?: number
+  /** true for ingredients the user created that aren't in the built-in catalog */
+  custom?: boolean
+  /**
+   * Supabase `kitchen_items.id` once this item has been synced. The app-level
+   * `id` above stays a stable slug (recipes reference ingredients by it), so
+   * this is kept separately as the sync layer's key for update/delete calls.
+   */
+  remoteId?: string
 }
 
 export interface RecipeIngredient {
@@ -77,4 +91,6 @@ export interface GroceryItem {
   reason: string
   checked: boolean
   estPrice?: number
+  /** Supabase `grocery_list_items.id` once this item has been synced (see kitchen_items' `remoteId`). */
+  remoteId?: string
 }

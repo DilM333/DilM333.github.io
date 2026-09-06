@@ -1,9 +1,17 @@
 import { useMemo, useState } from 'react'
+import EmptyState from '../components/EmptyState'
 import PageHeader from '../components/PageHeader'
+import SectionHeader from '../components/SectionHeader'
+import SkeletonRows from '../components/SkeletonRows'
+import SyncErrorBanner from '../components/SyncErrorBanner'
+import { groceryItemForName } from '../lib/grocery'
 import { useKitchenStore } from '../store/useKitchenStore'
 
 export default function GroceryList() {
   const groceryList = useKitchenStore((s) => s.groceryList)
+  const groceryLoading = useKitchenStore((s) => s.groceryLoading)
+  const groceryListSyncError = useKitchenStore((s) => s.groceryListSyncError)
+  const customCatalog = useKitchenStore((s) => s.customCatalog)
   const toggleGroceryChecked = useKitchenStore((s) => s.toggleGroceryChecked)
   const removeGroceryItem = useKitchenStore((s) => s.removeGroceryItem)
   const addToGroceryList = useKitchenStore((s) => s.addToGroceryList)
@@ -25,12 +33,7 @@ export default function GroceryList() {
 
   const addDraft = () => {
     if (!draft.trim()) return
-    addToGroceryList({
-      name: draft.trim(),
-      emoji: '🛒',
-      category: 'Other',
-      reason: 'Added manually',
-    })
+    addToGroceryList(groceryItemForName(draft, 'Added manually', customCatalog))
     setDraft('')
   }
 
@@ -40,6 +43,14 @@ export default function GroceryList() {
         title="Grocery List"
         subtitle={`Est. ${estimatedTotal > 0 ? `$${estimatedTotal.toFixed(2)}` : 'nothing needed'}`}
       />
+
+      {groceryListSyncError && (
+        <SyncErrorBanner
+          title="Sync paused"
+          message="You're seeing your list saved on this device. It'll sync once Supabase is reachable again."
+          hint={groceryListSyncError}
+        />
+      )}
 
       <div className="flex gap-2 px-5">
         <input
@@ -58,52 +69,66 @@ export default function GroceryList() {
         </button>
       </div>
 
-      {grouped.length === 0 && (
-        <p className="px-5 text-sm text-ink/50">Your list is empty. Nice work.</p>
-      )}
-
-      {grouped.map(([category, list]) => (
-        <div key={category} className="flex flex-col gap-2 px-5">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-ink/40">{category}</h2>
-          <div className="flex flex-col gap-1.5">
-            {list.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center gap-3 rounded-xl border border-ink/10 bg-white px-4 py-2.5 shadow-soft"
-              >
-                <button
-                  onClick={() => toggleGroceryChecked(item.id)}
-                  aria-label={`Toggle ${item.name}`}
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 text-xs font-bold ${
-                    item.checked ? 'border-leaf bg-leaf text-white' : 'border-ink/20 text-transparent'
-                  }`}
-                >
-                  ✓
-                </button>
-                <span className="text-lg">{item.emoji}</span>
-                <div className="min-w-0 flex-1">
-                  <p
-                    className={`truncate text-sm font-semibold ${item.checked ? 'text-ink/30 line-through' : 'text-ink'}`}
-                  >
-                    {item.name}
-                  </p>
-                  <p className="truncate text-xs text-ink/50">{item.reason}</p>
-                </div>
-                {item.estPrice != null && (
-                  <span className="text-xs font-semibold text-ink/40">${item.estPrice.toFixed(2)}</span>
-                )}
-                <button
-                  onClick={() => removeGroceryItem(item.id)}
-                  aria-label={`Remove ${item.name}`}
-                  className="text-ink/30 hover:text-clay"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
+      {groceryLoading ? (
+        <div className="px-5">
+          <SkeletonRows count={3} />
         </div>
-      ))}
+      ) : (
+        <>
+          {grouped.length === 0 && (
+            <div className="px-5">
+              <EmptyState icon="📝" title="Your list is empty" hint="Nice work — nothing to shop for right now." />
+            </div>
+          )}
+
+          {grouped.map(([category, list]) => (
+            <div key={category} className="flex flex-col gap-2 px-5">
+              <SectionHeader>{category}</SectionHeader>
+              <div className="flex flex-col gap-1.5">
+                {list.map((item) => (
+                  <div
+                    key={item.id}
+                    className={`flex items-center gap-3 rounded-xl2 border px-4 py-2.5 shadow-soft transition-colors ${
+                      item.checked ? 'border-ink/5 bg-ink/[0.02]' : 'border-ink/10 bg-white'
+                    }`}
+                  >
+                    <button
+                      onClick={() => toggleGroceryChecked(item.id)}
+                      aria-label={`Mark ${item.name} as ${item.checked ? 'not gotten' : 'gotten'}`}
+                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold transition ${
+                        item.checked ? 'border-leaf bg-leaf text-white' : 'border-ink/20 text-transparent'
+                      }`}
+                    >
+                      ✓
+                    </button>
+                    <span className={`text-lg ${item.checked ? 'opacity-40' : ''}`}>{item.emoji}</span>
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={`truncate text-sm font-semibold ${item.checked ? 'text-ink/30 line-through' : 'text-ink'}`}
+                      >
+                        {item.name}
+                      </p>
+                      {item.reason && (
+                        <p className="truncate text-xs text-ink/45">{item.reason}</p>
+                      )}
+                    </div>
+                    {item.estPrice != null && (
+                      <span className="text-xs font-semibold text-ink/40">${item.estPrice.toFixed(2)}</span>
+                    )}
+                    <button
+                      onClick={() => removeGroceryItem(item.id)}
+                      aria-label={`Remove ${item.name} from list`}
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-lg text-ink/30 hover:bg-clay/10 hover:text-clay"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   )
 }

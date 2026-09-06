@@ -5,12 +5,37 @@ export function findItem(items: KitchenItem[], id?: string) {
   return items.find((i) => i.id === id)
 }
 
-export function fractionLabel(fraction: number) {
-  if (fraction <= 0) return 'Out'
+/** Whole-unit part of a divisible item's total quantity, e.g. wholeOf(1.5) === 1. */
+export function wholeOf(total: number): number {
+  return Math.max(0, Math.floor(total + 1e-9))
+}
+
+/**
+ * Quarter-step remainder of a divisible item's total quantity, snapped to one
+ * of 0/.25/.5/.75 to absorb float drift, e.g. fracPartOf(1.5) === 0.5.
+ */
+export function fracPartOf(total: number): number {
+  const remainder = Math.max(0, total) - wholeOf(total)
+  const snapped = Math.round(remainder * 4) / 4
+  return snapped >= 1 ? 0 : snapped
+}
+
+/** Label for just a quarter-step value (0/¼/½/¾/1) — used for the remainder picker buttons. */
+export function quarterGlyph(fraction: number): string {
+  if (fraction <= 0) return '0'
   if (fraction <= 0.26) return '¼'
   if (fraction <= 0.51) return '½'
   if (fraction <= 0.76) return '¾'
   return '1'
+}
+
+/** Full display label for a divisible item's total quantity, e.g. "1 ½", "2", "Out". */
+export function fractionLabel(total: number) {
+  if (total <= 0) return 'Out'
+  const whole = wholeOf(total)
+  const frac = fracPartOf(total)
+  if (whole <= 0) return quarterGlyph(frac)
+  return frac > 0 ? `${whole} ${quarterGlyph(frac)}` : `${whole}`
 }
 
 export function levelLabel(level: string) {
@@ -65,6 +90,33 @@ export function itemHasStock(item: KitchenItem): boolean {
       return item.level !== 'out'
     default:
       return false
+  }
+}
+
+/** Coarse stock level of a single item, independent of any recipe. */
+export function stockLevel(item: KitchenItem): 'out' | 'low' | 'ok' {
+  switch (item.stockType) {
+    case 'countable': {
+      const c = item.count ?? 0
+      if (c <= 0) return 'out'
+      return c <= 1 ? 'low' : 'ok'
+    }
+    case 'divisible': {
+      const f = item.fraction ?? 0
+      if (f <= 0) return 'out'
+      return f <= 0.25 ? 'low' : 'ok'
+    }
+    case 'container': {
+      const fill = item.fill ?? 0
+      if (fill <= 0.05) return 'out'
+      return fill < 0.35 ? 'low' : 'ok'
+    }
+    case 'staple': {
+      if (item.level === 'out') return 'out'
+      return item.level === 'low' ? 'low' : 'ok'
+    }
+    default:
+      return 'ok'
   }
 }
 
