@@ -12,6 +12,7 @@ import {
   fetchHouseholdMembers,
   fetchHouseholdName,
   fetchPendingSentInvites,
+  sendHouseholdInviteEmail,
   type HouseholdMember,
   type PendingSentInvite,
 } from '../lib/householdMembers'
@@ -38,6 +39,7 @@ export default function Household() {
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviting, setInviting] = useState(false)
   const [inviteMessage, setInviteMessage] = useState<string | null>(null)
+  const [inviteWarning, setInviteWarning] = useState<string | null>(null)
   const [inviteError, setInviteError] = useState<string | null>(null)
 
   const isOwner = members.find((m) => m.userId === userId)?.role === 'owner'
@@ -78,15 +80,26 @@ export default function Household() {
 
     setInviting(true)
     setInviteError(null)
+    setInviteWarning(null)
     setInviteMessage(null)
 
     const res = await createHouseholdInvite(householdId, email, userId)
     if (res.error) {
       setInviteError(res.error)
     } else if (res.alreadyInvited) {
+      // A pending invite already exists — never re-trigger the email here,
+      // that's what keeps a duplicate "Send Invite" click from double-sending.
       setInviteMessage(`${email} already has a pending invite.`)
-    } else {
-      setInviteMessage(`Invited ${email}.`)
+    } else if (res.inviteId) {
+      const emailRes = await sendHouseholdInviteEmail(res.inviteId)
+      if (emailRes.status === 'error') {
+        setInviteWarning(
+          `Invited ${email}, but the email couldn't be sent (${emailRes.error ?? 'unknown error'}). ` +
+            `The invite is still saved — they can sign in with that address and accept it directly in Euko.`,
+        )
+      } else {
+        setInviteMessage(`Invited ${email} — they'll get an email from Euko to join.`)
+      }
       setInviteEmail('')
       const refreshed = await fetchPendingSentInvites(householdId)
       if (!refreshed.error) setSentInvites(refreshed.invites)
@@ -189,6 +202,7 @@ export default function Household() {
               </form>
 
               {inviteError && <FormNotice tone="error">{inviteError}</FormNotice>}
+              {inviteWarning && <FormNotice tone="warning">{inviteWarning}</FormNotice>}
               {inviteMessage && <FormNotice tone="success">{inviteMessage}</FormNotice>}
 
               {sentInvites.length > 0 && (
@@ -207,8 +221,8 @@ export default function Household() {
               )}
 
               <p className="text-xs leading-relaxed text-ink/40">
-                Invites don&apos;t send an email yet — let them know to sign in with this address,
-                and they&apos;ll be prompted to accept.
+                They&apos;ll get an email from Euko to sign in with this address — once they do,
+                they&apos;ll be prompted to accept right inside the app.
               </p>
             </div>
           ) : (

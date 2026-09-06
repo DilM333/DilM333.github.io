@@ -116,6 +116,8 @@ export interface CreateInviteResult {
   error?: string
   /** True when an invite for this email is already pending — not a failure. */
   alreadyInvited?: boolean
+  /** The new invite's id — only set on a genuinely new insert, used to trigger its email. */
+  inviteId?: string
 }
 
 export async function createHouseholdInvite(
@@ -123,15 +125,47 @@ export async function createHouseholdInvite(
   email: string,
   invitedByUserId: string,
 ): Promise<CreateInviteResult> {
-  const { error } = await supabase.from('household_invites').insert({
-    household_id: householdId,
-    email: email.trim().toLowerCase(),
-    invited_by: invitedByUserId,
-  })
+  const { data, error } = await supabase
+    .from('household_invites')
+    .insert({
+      household_id: householdId,
+      email: email.trim().toLowerCase(),
+      invited_by: invitedByUserId,
+    })
+    .select('id')
+    .single()
 
   if (error?.code === '23505') return { alreadyInvited: true }
   if (error) return { error: describe('send this invite', error, INSERT_INVITE_HINT) }
-  return {}
+  return { inviteId: data?.id as string }
+}
+
+export interface SendInviteEmailResult {
+  status: 'sent' | 'already_sent' | 'error'
+  error?: string
+}
+
+/**
+ * Triggers the invite email via the send-household-invite-email Edge
+ * Function. Only ever called right after a *new* invite insert (never on the
+ * "already invited" branch above) — that, plus the function's own
+ * `email_sent_at` guard, is what keeps this from double-sending.
+ *
+ * A failure here is deliberately not treated as the invite itself failing:
+ * the household_invites row already exists and stays pending either way, so
+ * callers should show a warning, not roll anything back.
+ */
+export async function sendHouseholdInviteEmail(inviteId: string): Promise<SendInviteEmailResult> {
+  const { data, error } = await supabase.functions.invoke('send-household-invite-email', {
+    body: { inviteId },
+  })
+
+  if (error) {
+    return { status: 'error', error: error.message ?? 'Could not send the invite email.' }
+  }
+  const status = (data as { status?: string } | null)?.status
+  if (status === 'sent' || status === 'already_sent') return { status }
+  return { status: 'error', error: 'Could not send the invite email.' }
 }
 
 export interface FetchSentInvitesResult {
