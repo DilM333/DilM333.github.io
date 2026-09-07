@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import type { KitchenItem, Recipe, RecipeIngredient } from '../data/types'
 import { catalog, toKitchenItem } from '../data/catalog'
 import { computeFeasibility, ingredientStatus, matchIngredient } from '../lib/kitchen'
 import { inventoryConfidence } from '../lib/inventoryConfidence'
+import { uncertainRequiredItems } from '../lib/recipeMatch'
 import { useKitchenStore } from './useKitchenStore'
 
 function catalogEntry(id: string) {
@@ -196,5 +198,193 @@ describe('inventory confidence — explicit local writes are fresh observations'
     makeStale('eggs')
     useKitchenStore.getState().finishCooking([{ itemId: 'eggs', newCount: 2 }])
     expect(inventoryConfidence(get('eggs'))).toBe('high')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Phase 2.3: one-tap inventory confirmation from the recipe flow.
+// confirmKitchenItem ("Still have it") and setItemStockLevel ("Low" / "Out")
+// run through the ordinary kitchen mutations + persistItem (household sync)
+// path — no direct Supabase writes, no second stock model.
+// ---------------------------------------------------------------------------
+
+function kItem(over: Partial<KitchenItem> & Pick<KitchenItem, 'id' | 'name' | 'stockType'>): KitchenItem {
+  return {
+    emoji: '🥣',
+    location: 'fridge',
+    category: 'Dairy',
+    daysSincePurchase: 400, // stale by default
+    ...over,
+  }
+}
+function ing(over: Partial<RecipeIngredient> & Pick<RecipeIngredient, 'id' | 'name'>): RecipeIngredient {
+  return { emoji: '🥣', quantity: '1', ...over }
+}
+function testRecipe(ingredients: RecipeIngredient[]): Recipe {
+  return {
+    id: 'r',
+    name: 'Test',
+    emoji: '🍽️',
+    time: 20,
+    effortLabel: 'Easy',
+    effort: 'Normal',
+    tags: [],
+    description: '',
+    ingredients,
+    steps: [],
+  }
+}
+
+describe('confirmKitchenItem — "still have it"', () => {
+  beforeEach(() => useKitchenStore.getState().resetDemo())
+  const get = (id: string) => useKitchenStore.getState().items.find((i) => i.id === id)!
+
+  it('bumps observation time and restores high confidence without touching stock or reservation', () => {
+    // Seed butter: staple, reserved 0.5 with a reservedFor. Make it stale first.
+    useKitchenStore.setState((s) => ({
+      items: s.items.map((i) =>
+        i.id === 'butter' ? { ...i, updatedAt: undefined, daysSincePurchase: 400 } : i,
+      ),
+    }))
+    const before = get('butter')
+    expect(inventoryConfidence(before)).toBe('low')
+
+    const t0 = Date.now()
+    useKitchenStore.getState().confirmKitchenItem('butter')
+
+    const after = get('butter')
+    expect(after.level).toBe(before.level)
+    expect(after.reserved).toBe(before.reserved)
+    expect(after.reservedFor).toBe(before.reservedFor)
+    expect(after.remoteId).toBe(before.remoteId)
+    expect(Date.parse(after.updatedAt!)).toBeGreaterThanOrEqual(t0)
+    expect(inventoryConfidence(after)).toBe('high')
+  })
+})
+
+describe('setItemStockLevel — "low" / "out" per stock type', () => {
+  const load = (item: KitchenItem) => useKitchenStore.setState({ items: [item], householdId: null })
+  const only = () => useKitchenStore.getState().items[0]
+
+  it('"low" maps to each stock type and refreshes the observation', () => {
+    load(kItem({ id: 'x', name: 'X', stockType: 'countable', count: 9 }))
+    useKitchenStore.getState().setItemStockLevel('x', 'low')
+    expect(only().count).toBe(1)
+    expect(inventoryConfidence(only())).toBe('high')
+
+    load(kItem({ id: 'x', name: 'X', stockType: 'divisible', fraction: 3 }))
+    useKitchenStore.getState().setItemStockLevel('x', 'low')
+    expect(only().fraction).toBe(0.25)
+
+    load(kItem({ id: 'x', name: 'X', stockType: 'container', fill: 0.95 }))
+    useKitchenStore.getState().setItemStockLevel('x', 'low')
+    expect(only().fill).toBe(0.2)
+
+    load(kItem({ id: 'x', name: 'X', stockType: 'staple', level: 'plenty' }))
+    useKitchenStore.getState().setItemStockLevel('x', 'low')
+    expect(only().level).toBe('low')
+  })
+
+  it('"out" maps to zero / out for each stock type', () => {
+    load(kItem({ id: 'x', name: 'X', stockType: 'countable', count: 9 }))
+    useKitchenStore.getState().setItemStockLevel('x', 'out')
+    expect(only().count).toBe(0)
+
+    load(kItem({ id: 'x', name: 'X', stockType: 'divisible', fraction: 3 }))
+    useKitchenStore.getState().setItemStockLevel('x', 'out')
+    expect(only().fraction).toBe(0)
+
+    load(kItem({ id: 'x', name: 'X', stockType: 'container', fill: 0.95 }))
+    useKitchenStore.getState().setItemStockLevel('x', 'out')
+    expect(only().fill).toBe(0)
+
+    load(kItem({ id: 'x', name: 'X', stockType: 'staple', level: 'plenty' }))
+    useKitchenStore.getState().setItemStockLevel('x', 'out')
+    expect(only().level).toBe('out')
+  })
+
+  it('preserves reservation and identity', () => {
+    load(
+      kItem({
+        id: 'x',
+        name: 'X',
+        stockType: 'divisible',
+        fraction: 2,
+        reserved: 0.5,
+        reservedFor: 'pie',
+        remoteId: 'row-1',
+        custom: true,
+      }),
+    )
+    useKitchenStore.getState().setItemStockLevel('x', 'low')
+    const after = only()
+    expect(after.fraction).toBe(0.25)
+    expect(after.reserved).toBe(0.5)
+    expect(after.reservedFor).toBe('pie')
+    expect(after.remoteId).toBe('row-1')
+    expect(after.custom).toBe(true)
+  })
+})
+
+describe('worth-checking flow — queue + readiness re-evaluation', () => {
+  const load = (items: KitchenItem[]) => useKitchenStore.setState({ items, householdId: null })
+  const live = () => useKitchenStore.getState().items
+
+  it('confirming one uncertain item advances the queue to the next', () => {
+    load([
+      kItem({ id: 'milk', name: 'Milk', stockType: 'container', fill: 1 }),
+      kItem({ id: 'spinach', name: 'Spinach', stockType: 'divisible', fraction: 1, category: 'Produce' }),
+    ])
+    const r = testRecipe([
+      ing({ id: 'a', name: 'Milk', itemId: 'milk' }),
+      ing({ id: 'b', name: 'Spinach', itemId: 'spinach' }),
+    ])
+    expect(uncertainRequiredItems(r, live()).map((i) => i.id)).toEqual(['milk', 'spinach'])
+
+    useKitchenStore.getState().confirmKitchenItem('milk')
+    expect(uncertainRequiredItems(r, live()).map((i) => i.id)).toEqual(['spinach'])
+  })
+
+  it('an item already refreshed elsewhere is skipped by the queue', () => {
+    load([kItem({ id: 'milk', name: 'Milk', stockType: 'container', fill: 1 })])
+    const r = testRecipe([ing({ id: 'a', name: 'Milk', itemId: 'milk' })])
+
+    useKitchenStore.getState().confirmKitchenItem('milk') // "elsewhere"
+    expect(uncertainRequiredItems(r, live())).toEqual([])
+  })
+
+  it('a queued item that vanishes from the store is silently dropped, advancing to the next', () => {
+    load([
+      kItem({ id: 'milk', name: 'Milk', stockType: 'container', fill: 1 }),
+      kItem({ id: 'spinach', name: 'Spinach', stockType: 'divisible', fraction: 1, category: 'Produce' }),
+    ])
+    const r = testRecipe([
+      ing({ id: 'a', name: 'Milk', itemId: 'milk' }),
+      ing({ id: 'b', name: 'Spinach', itemId: 'spinach' }),
+    ])
+    expect(uncertainRequiredItems(r, live()).map((i) => i.id)).toEqual(['milk', 'spinach'])
+
+    // milk removed from the kitchen entirely (e.g. by another device)
+    useKitchenStore.getState().removeKitchenItem('milk')
+    expect(uncertainRequiredItems(r, live()).map((i) => i.id)).toEqual(['spinach'])
+
+    // and the last one goes too -> empty queue, panel disappears naturally
+    useKitchenStore.getState().removeKitchenItem('spinach')
+    expect(uncertainRequiredItems(r, live())).toEqual([])
+  })
+
+  it('marking an uncertain ingredient Out re-evaluates the recipe via the readiness engine', () => {
+    load([
+      kItem({ id: 'milk', name: 'Milk', stockType: 'container', fill: 1 }),
+      kItem({ id: 'eggs', name: 'Eggs', stockType: 'countable', count: 6, daysSincePurchase: 1 }),
+    ])
+    const r = testRecipe([
+      ing({ id: 'a', name: 'Milk', itemId: 'milk' }),
+      ing({ id: 'b', name: 'Eggs', itemId: 'eggs' }),
+    ])
+    expect(computeFeasibility(r, live()).status).toBe('ready')
+
+    useKitchenStore.getState().setItemStockLevel('milk', 'out')
+    expect(computeFeasibility(r, live()).status).toBe('one-away')
   })
 })

@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import ConfirmStockPanel from '../components/ConfirmStockPanel'
 import PageHeader from '../components/PageHeader'
 import SectionHeader from '../components/SectionHeader'
 import StatusPill from '../components/StatusPill'
@@ -24,6 +26,7 @@ export default function RecipeDetail() {
   const startCooking = useKitchenStore((s) => s.startCooking)
   const groceryList = useKitchenStore((s) => s.groceryList)
   const addToGroceryList = useKitchenStore((s) => s.addToGroceryList)
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   if (!recipe) return null
 
@@ -70,7 +73,20 @@ export default function RecipeDetail() {
           {recipe.emoji}
         </div>
         <StatusPill status={status} />
-        {checkHint && <p className="text-xs text-ink/50">{checkHint}</p>}
+        {checkHint && (
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirmOpen((o) => !o)}
+              className="self-start text-left text-xs text-ink/50 underline decoration-ink/20 underline-offset-2 hover:text-ink/70"
+            >
+              {checkHint}
+            </button>
+            {confirmOpen && (
+              <ConfirmStockPanel recipe={recipe} onClose={() => setConfirmOpen(false)} />
+            )}
+          </div>
+        )}
         <h1 className="font-display text-2xl font-semibold text-ink">{recipe.name}</h1>
         <p className="text-sm text-ink/60">{recipe.description}</p>
         <div className="flex items-center gap-3 text-xs font-semibold text-ink/50">

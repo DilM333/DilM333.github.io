@@ -211,3 +211,30 @@ export function lowConfidenceHint(
   if (names.length === 0) return null
   return `Looks ready — worth checking ${formatCheckList(names)}`
 }
+
+/**
+ * The queue for the "worth checking" one-tap confirmation flow: the distinct
+ * kitchen items behind a recipe's *required* low-confidence ingredients.
+ *
+ *  - deduped by item id, so two recipe ingredients that resolve to the same
+ *    kitchen item are only asked about once;
+ *  - a substitute-satisfied ingredient contributes the item that actually
+ *    stood in (`matchedItem`), never the originally requested id;
+ *  - optional and missing ingredients never appear (they're not in
+ *    `lowConfidenceRequired` to begin with).
+ *
+ * Recompute this from live store items on every render: an item that has since
+ * been confirmed elsewhere (no longer low-confidence) or removed from the
+ * kitchen simply drops out of the queue.
+ */
+export function uncertainRequiredItems(recipe: Recipe, items: KitchenItem[]): KitchenItem[] {
+  const seen = new Set<string>()
+  const out: KitchenItem[] = []
+  for (const m of matchRecipe(recipe, items).lowConfidenceRequired) {
+    const matched = m.matchedItem
+    if (!matched || seen.has(matched.id)) continue
+    seen.add(matched.id)
+    out.push(matched)
+  }
+  return out
+}

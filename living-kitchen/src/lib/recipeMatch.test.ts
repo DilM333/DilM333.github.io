@@ -9,6 +9,7 @@ import {
   matchRecipe,
   matchStatusLabel,
   rankRecipes,
+  uncertainRequiredItems,
 } from './recipeMatch'
 
 function ing(overrides: Partial<RecipeIngredient> & Pick<RecipeIngredient, 'id' | 'name'>): RecipeIngredient {
@@ -553,5 +554,91 @@ describe('lowConfidenceHint', () => {
     const status = computeFeasibility(r, partialItems).status
     expect(status).toBe('one-away')
     expect(lowConfidenceHint(matchRecipe(r, partialItems), status)).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// uncertainRequiredItems (Phase 2.3): the queue for the one-tap confirmation
+// flow — distinct kitchen items behind required low-confidence ingredients.
+// ---------------------------------------------------------------------------
+
+describe('uncertainRequiredItems', () => {
+  const stale = (over: Partial<KitchenItem> & Pick<KitchenItem, 'id' | 'name'>) =>
+    item({ category: 'Dairy', count: 5, daysSincePurchase: 400, ...over })
+  const fresh = (over: Partial<KitchenItem> & Pick<KitchenItem, 'id' | 'name'>) =>
+    item({ category: 'Dairy', count: 5, daysSincePurchase: 1, ...over })
+
+  it('returns the distinct low-confidence matched items for required ingredients', () => {
+    const items = [stale({ id: 'milk', name: 'Milk' }), fresh({ id: 'eggs', name: 'Eggs' })]
+    const r = recipe({
+      id: 'r',
+      ingredients: [
+        ing({ id: 'i1', name: 'Milk', itemId: 'milk' }),
+        ing({ id: 'i2', name: 'Eggs', itemId: 'eggs' }),
+      ],
+    })
+    expect(uncertainRequiredItems(r, items).map((it) => it.id)).toEqual(['milk'])
+  })
+
+  it('asks about a shared kitchen item only once', () => {
+    const items = [stale({ id: 'milk', name: 'Milk' })]
+    const r = recipe({
+      id: 'double-milk',
+      ingredients: [
+        ing({ id: 'a', name: 'Milk', itemId: 'milk' }),
+        ing({ id: 'b', name: 'Milk', itemId: 'milk' }),
+      ],
+    })
+    expect(uncertainRequiredItems(r, items).map((it) => it.id)).toEqual(['milk'])
+  })
+
+  it('returns the substitute that actually stood in, not the requested id', () => {
+    const items = [
+      stale({ id: 'yellow-onion', name: 'Yellow Onion', category: 'Produce', stockType: 'divisible', fraction: 1 }),
+    ]
+    const r = recipe({
+      id: 'sub',
+      ingredients: [ing({ id: 'i1', name: 'Red onion', itemId: 'red-onion' })],
+    })
+    expect(uncertainRequiredItems(r, items).map((it) => it.id)).toEqual(['yellow-onion'])
+  })
+
+  it('ignores an optional low-confidence ingredient', () => {
+    const items = [
+      fresh({ id: 'eggs', name: 'Eggs' }),
+      stale({ id: 'parmesan', name: 'Parmesan', stockType: 'staple', level: 'some' }),
+    ]
+    const r = recipe({
+      id: 'opt',
+      ingredients: [
+        ing({ id: 'i1', name: 'Eggs', itemId: 'eggs' }),
+        ing({ id: 'i2', name: 'Parmesan', itemId: 'parmesan', optional: true }),
+      ],
+    })
+    expect(uncertainRequiredItems(r, items)).toEqual([])
+  })
+
+  it('ignores a missing required ingredient', () => {
+    const items = [stale({ id: 'milk', name: 'Milk' })]
+    const r = recipe({
+      id: 'missing',
+      ingredients: [
+        ing({ id: 'i1', name: 'Milk', itemId: 'milk' }),
+        ing({ id: 'i2', name: 'Yeast', itemId: 'yeast' }),
+      ],
+    })
+    expect(uncertainRequiredItems(r, items).map((it) => it.id)).toEqual(['milk'])
+  })
+
+  it('is empty when every required ingredient was seen recently', () => {
+    const items = [fresh({ id: 'milk', name: 'Milk' }), fresh({ id: 'eggs', name: 'Eggs' })]
+    const r = recipe({
+      id: 'all-fresh',
+      ingredients: [
+        ing({ id: 'i1', name: 'Milk', itemId: 'milk' }),
+        ing({ id: 'i2', name: 'Eggs', itemId: 'eggs' }),
+      ],
+    })
+    expect(uncertainRequiredItems(r, items)).toEqual([])
   })
 })

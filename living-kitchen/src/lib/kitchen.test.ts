@@ -7,6 +7,8 @@ import {
   matchIngredient,
   quantityStatus,
   quarterGlyph,
+  stockLevel,
+  stockPatchForLevel,
   usableAmount,
   wholeOf,
 } from './kitchen'
@@ -555,5 +557,39 @@ describe('matchIngredient — no-itemId ingredients resolve via canonical/alias 
     ]
     const result = matchIngredient(ing({ id: 'i1', name: 'onion' }), items)
     expect(result.kind).toBe('missing')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// stockPatchForLevel (Phase 2.3): maps a coarse "low" / "out" intent onto the
+// item's own stock type. It's the inverse of stockLevel — a patch it produces
+// must actually read back as that level.
+// ---------------------------------------------------------------------------
+
+describe('stockPatchForLevel', () => {
+  const countable = item({ id: 'eggs', name: 'Eggs', stockType: 'countable', count: 8 })
+  const divisible = item({ id: 'onion', name: 'Onion', stockType: 'divisible', fraction: 2.5 })
+  const container = item({ id: 'milk', name: 'Milk', stockType: 'container', fill: 0.9 })
+  const staple = item({ id: 'flour', name: 'Flour', stockType: 'staple', level: 'plenty' })
+
+  it('maps "low" to the low end of each stock type', () => {
+    expect(stockPatchForLevel(countable, 'low')).toEqual({ count: 1 })
+    expect(stockPatchForLevel(divisible, 'low')).toEqual({ fraction: 0.25 })
+    expect(stockPatchForLevel(container, 'low')).toEqual({ fill: 0.2 })
+    expect(stockPatchForLevel(staple, 'low')).toEqual({ level: 'low' })
+  })
+
+  it('maps "out" to zero / out for each stock type', () => {
+    expect(stockPatchForLevel(countable, 'out')).toEqual({ count: 0 })
+    expect(stockPatchForLevel(divisible, 'out')).toEqual({ fraction: 0 })
+    expect(stockPatchForLevel(container, 'out')).toEqual({ fill: 0 })
+    expect(stockPatchForLevel(staple, 'out')).toEqual({ level: 'out' })
+  })
+
+  it('a patched item reads back as exactly that stockLevel', () => {
+    for (const base of [countable, divisible, container, staple]) {
+      expect(stockLevel({ ...base, ...stockPatchForLevel(base, 'low') })).toBe('low')
+      expect(stockLevel({ ...base, ...stockPatchForLevel(base, 'out') })).toBe('out')
+    }
   })
 })

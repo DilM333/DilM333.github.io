@@ -121,6 +121,40 @@ export function stockLevel(item: KitchenItem): 'out' | 'low' | 'ok' {
   }
 }
 
+/**
+ * The stock-field patch that puts an item at a coarse 'low' or 'out' reading
+ * for its own stock type — the deliberate inverse of `stockLevel`, so a quick
+ * "still have it / low / out" correction never invents amounts the rest of the
+ * app doesn't already use:
+ *
+ *   countable  -> { count: 1 }  / { count: 0 }
+ *   divisible  -> { fraction: 0.25 } / { fraction: 0 }
+ *   container  -> { fill: 0.2 } / { fill: 0 }
+ *   staple     -> { level: 'low' } / { level: 'out' }
+ *
+ * 1 / 0.25 / 0.2 each sit inside `stockLevel`'s own 'low' band; the 'out'
+ * values are its zero cases. Returns the patch only — the caller applies it
+ * through the normal store mutations so reservation, identity, persistence and
+ * household sync are all unchanged.
+ */
+export function stockPatchForLevel(
+  item: KitchenItem,
+  level: 'low' | 'out',
+): Partial<Pick<KitchenItem, 'count' | 'fraction' | 'fill' | 'level'>> {
+  switch (item.stockType) {
+    case 'countable':
+      return { count: level === 'low' ? 1 : 0 }
+    case 'divisible':
+      return { fraction: level === 'low' ? 0.25 : 0 }
+    case 'container':
+      return { fill: level === 'low' ? 0.2 : 0 }
+    case 'staple':
+      return { level: level === 'low' ? 'low' : 'out' }
+    default:
+      return {}
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Substitute-aware ingredient resolution — the canonical exact/substitute/
 // missing engine, conceptually owned by lib/recipeMatch.ts (which re-exports

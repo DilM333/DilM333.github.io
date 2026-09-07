@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import type { CatalogEntry } from '../data/catalog'
 import { seedGroceryList, seedKitchen, seedPeople, seedRecipes } from '../data/seed'
 import type { GroceryItem, KitchenItem, Person, Recipe, StapleLevel } from '../data/types'
+import { stockPatchForLevel } from '../lib/kitchen'
 import {
   deleteKitchenItem,
   fetchKitchenItems,
@@ -106,6 +107,19 @@ interface KitchenState {
   updateFill: (id: string, fill: number) => void
   updateLevel: (id: string, level: StapleLevel) => void
   setReserved: (id: string, reserved: number, reservedFor?: string) => void
+  /**
+   * "Still have it" from the worth-checking flow: records a fresh observation
+   * of an item (bumps updatedAt so inventory confidence recovers) without
+   * touching its stock amount, reservation, or identity.
+   */
+  confirmKitchenItem: (id: string) => void
+  /**
+   * "Low" / "Out" from the worth-checking flow: sets an item to a coarse 'low'
+   * or 'out' reading for its own stock type (see stockPatchForLevel) and
+   * records the observation. Reservation, identity, persistence and household
+   * sync are unchanged — same path as the other stock mutations.
+   */
+  setItemStockLevel: (id: string, level: 'low' | 'out') => void
   addKitchenItem: (item: KitchenItem) => void
   removeKitchenItem: (id: string) => void
   addCustomCatalogEntry: (entry: CatalogEntry) => void
@@ -549,6 +563,24 @@ export const useKitchenStore = create<KitchenState>()(
                     updatedAt: observedNow(),
                   }
                 : i,
+            ),
+          }))
+          const updated = get().items.find((i) => i.id === id)
+          if (updated) persistItem(updated)
+        },
+
+        confirmKitchenItem: (id) => {
+          set((state) => ({
+            items: state.items.map((i) => (i.id === id ? { ...i, updatedAt: observedNow() } : i)),
+          }))
+          const updated = get().items.find((i) => i.id === id)
+          if (updated) persistItem(updated)
+        },
+
+        setItemStockLevel: (id, level) => {
+          set((state) => ({
+            items: state.items.map((i) =>
+              i.id === id ? { ...i, ...stockPatchForLevel(i, level), updatedAt: observedNow() } : i,
             ),
           }))
           const updated = get().items.find((i) => i.id === id)
