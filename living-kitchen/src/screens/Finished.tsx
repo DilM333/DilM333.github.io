@@ -4,7 +4,7 @@ import PageHeader from '../components/PageHeader'
 import { itemDisplayAmount, stockLevel } from '../lib/kitchen'
 import { matchIngredient } from '../lib/recipeMatch'
 import { groceryItemForKitchenItem } from '../lib/grocery'
-import { suggestDeduction } from '../lib/deduction'
+import { buildDeductionMap } from '../lib/deduction'
 import { useKitchenStore, type KitchenDeduction } from '../store/useKitchenStore'
 import type { KitchenItem, StapleLevel } from '../data/types'
 
@@ -34,17 +34,24 @@ export default function Finished() {
     [recipe, items],
   )
 
-  const initialDeductions = useMemo(() => {
-    const map: Record<string, KitchenDeduction> = {}
-    trackable.forEach((ing) => {
-      const item = matchIngredient(ing, items).matchedItem!
-      const used = cookingSession?.actualUsage[ing.itemId!]
-      map[item.id] = suggestDeduction(item, used ?? 1)
-    })
-    return map
-  }, [trackable, items, cookingSession])
+  const initialDeductions = useMemo(
+    () => (recipe ? buildDeductionMap(recipe, items, cookingSession?.actualUsage) : {}),
+    [recipe, items, cookingSession],
+  )
 
   const [deductions, setDeductions] = useState(initialDeductions)
+  // Client-side navigation from one /finished route straight to another reuses
+  // this component instance, so `deductions` — seeded once by useState — would
+  // otherwise stay on the previous recipe. Re-seed it from the freshly
+  // recomputed initialDeductions whenever the route's recipe id changes.
+  // React's supported "adjust state during render on a prop change" pattern:
+  // no effect, no extra paint, and same-recipe items/cookingSession changes
+  // still never clobber in-progress manual adjustments.
+  const [deductionsRecipeId, setDeductionsRecipeId] = useState(id)
+  if (id !== deductionsRecipeId) {
+    setDeductionsRecipeId(id)
+    setDeductions(initialDeductions)
+  }
 
   if (!recipe) return null
 

@@ -8,6 +8,7 @@ import {
   type IngredientMatchKind,
   type QuantityStatus,
 } from './kitchen'
+import { inventoryConfidence } from './inventoryConfidence'
 
 // The canonical exact/substitute/missing/quantity resolution engine lives in
 // lib/kitchen.ts (it needs `itemHasStock`, which this file already imports
@@ -88,6 +89,19 @@ export interface RecipeMatch {
   hasSubstitutions: boolean
   /** Per-ingredient match detail (required + optional), exact/substitute/missing. */
   ingredientMatches: IngredientMatch[]
+  /**
+   * Required ingredients that ARE currently satisfied (exact or approved
+   * substitute) but whose matched kitchen item has 'low' inventory confidence
+   * — Euko hasn't had recent contact with it (see lib/inventoryConfidence).
+   *
+   * Purely informational. This never changes `isReady`, `matchPercent`,
+   * `requiredMissing`, ranking, or any feasibility status — a low-confidence
+   * item is still treated as available. It exists so the UI can eventually add
+   * a non-destructive hint to an otherwise-ready recipe, e.g.
+   * "Looks ready — worth checking milk". Empty when every required ingredient
+   * is either missing or recently confirmed.
+   */
+  lowConfidenceRequired: IngredientMatch[]
 }
 
 /** Deterministic, presence/absence match of one recipe against the current kitchen. */
@@ -97,6 +111,7 @@ export function matchRecipe(recipe: Recipe, items: KitchenItem[]): RecipeMatch {
   const availableOptionalIngredients: RecipeIngredient[] = []
   const missingOptionalIngredients: RecipeIngredient[] = []
   const ingredientMatches: IngredientMatch[] = []
+  const lowConfidenceRequired: IngredientMatch[] = []
   let hasSubstitutions = false
 
   for (const ingredient of recipe.ingredients) {
@@ -108,6 +123,9 @@ export function matchRecipe(recipe: Recipe, items: KitchenItem[]): RecipeMatch {
     } else {
       ;(available ? availableIngredients : missingIngredients).push(ingredient)
       if (match.kind === 'substitute') hasSubstitutions = true
+      if (available && match.matchedItem && inventoryConfidence(match.matchedItem) === 'low') {
+        lowConfidenceRequired.push(match)
+      }
     }
   }
 
@@ -129,6 +147,7 @@ export function matchRecipe(recipe: Recipe, items: KitchenItem[]): RecipeMatch {
     isReady: requiredMissing === 0,
     hasSubstitutions,
     ingredientMatches,
+    lowConfidenceRequired,
   }
 }
 

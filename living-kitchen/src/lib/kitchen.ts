@@ -349,17 +349,24 @@ export interface FeasibilityResult {
  *                     pre-existing coarse "low" heuristic (reservation /
  *                     parsed-quantity-vs-count) — this is the exact
  *                     pre-Phase-2 condition, unchanged.
- *   almost          - either an optional ingredient is missing, or exactly
- *                     one *required* ingredient has a structured requirement
- *                     that's quantitatively short (present, just not enough)
- *                     with nothing else wrong — "near-complete", reusing the
- *                     existing 'almost' status rather than inventing a new one.
+ *   almost          - exactly one *required* ingredient has a structured
+ *                     requirement that's quantitatively short (present, just
+ *                     not enough) with nothing else wrong — "near-complete",
+ *                     reusing the existing 'almost' status rather than
+ *                     inventing a new one.
  *   one-away        - exactly one required-ingredient "problem" overall
  *                     (fully missing, or 100% reserved so nothing usable —
  *                     see usableAmount), and it isn't the almost case above.
  *   needs-shopping  - two or more required-ingredient problems (missing
  *                     and/or quantitatively short combined) — this is the one
  *                     explicit threshold in this function: "problems >= 2".
+ *
+ * Optional ingredients never affect `status`. A missing, reserved, short, or
+ * substitute-satisfied *optional* ingredient leaves the recipe exactly as
+ * ready as its required ingredients alone make it — Euko treats optionals as
+ * "nice to have", never as a reason a recipe is less makeable. They still
+ * appear in the returned `missing`/`low` arrays so the grocery-list helpers in
+ * RecipeDetail/RecipeCard can offer to add them; that is display only.
  */
 export function computeFeasibility(recipe: Recipe, items: KitchenItem[]): FeasibilityResult {
   const missing: RecipeIngredient[] = []
@@ -389,18 +396,19 @@ export function computeFeasibility(recipe: Recipe, items: KitchenItem[]): Feasib
   }
 
   const requiredMissing = missing.filter((m) => !m.optional)
-  const optionalMissing = missing.filter((m) => m.optional)
   // "requiredMissing" already includes a required ingredient whose structured
   // quantity came back 'none' (e.g. fully reserved) — ingredientStatus maps
   // that to 'missing' too, so it's functionally the same "zero usable" case
   // as never having it at all.
+  //
+  // Only *required* lows can pull a recipe down to 'ready-adjusted'; an
+  // optional ingredient that's short/reserved must not (it stays 'ready').
+  const requiredLow = low.filter((l) => !l.optional)
   const requiredProblems = requiredMissing.length + requiredQuantityPartial.length
 
   let status: Feasibility
   if (requiredProblems === 0) {
-    if (optionalMissing.length > 0) {
-      status = 'almost'
-    } else if (low.length > 0 || hasRequiredSubstitution) {
+    if (requiredLow.length > 0 || hasRequiredSubstitution) {
       status = 'ready-adjusted'
     } else {
       status = 'ready'

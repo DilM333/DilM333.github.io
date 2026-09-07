@@ -27,6 +27,15 @@ export interface KitchenItem {
   reserved?: number
   reservedFor?: string
   daysSincePurchase?: number
+  /**
+   * ISO timestamp of the last explicit observation of this item's stock —
+   * stamped immediately on any local stock write (add, restock, adjust,
+   * reserve, post-cook confirm) and refreshed from `kitchen_items.updated_at`
+   * on sync. Read by lib/inventoryConfidence as the "last observed" signal;
+   * never used to mutate stock. Absent on never-written items and older
+   * persisted state.
+   */
+  updatedAt?: string
   /** optional estimated price the user entered when adding a custom ingredient */
   estPrice?: number
   /** true for ingredients the user created that aren't in the built-in catalog */

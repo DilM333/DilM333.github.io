@@ -366,12 +366,12 @@ describe('computeFeasibility — quantity-aware readiness', () => {
     expect(feasibility.missing.map((m) => m.id)).toEqual(['i1'])
   })
 
-  it('an optional ingredient being quantity-short never pushes the recipe past ready-adjusted', () => {
-    // A quantity-short optional ingredient maps to the same 'low' status a
-    // present-but-reserved optional ingredient already produced pre-Phase-2 —
-    // it can nudge 'ready' to 'ready-adjusted' (still fully cookable), but
-    // must never count toward 'almost'/'one-away'/'needs-shopping', which are
-    // reserved for *required*-ingredient problems.
+  it('an optional ingredient being quantity-short does not reduce readiness at all', () => {
+    // An optional ingredient that is present but short (or reserved, or low)
+    // must leave the recipe exactly as ready as its required ingredients make
+    // it — here every required ingredient is fully satisfied, so the recipe is
+    // plain 'ready', NOT 'ready-adjusted' and never 'almost'/'one-away'/
+    // 'needs-shopping' (those are for *required*-ingredient problems only).
     const items = [
       item({ id: 'eggs', name: 'Eggs', count: 3 }),
       item({ id: 'parmesan', name: 'Parmesan', stockType: 'staple', level: 'low' }),
@@ -391,7 +391,7 @@ describe('computeFeasibility — quantity-aware readiness', () => {
       ],
     })
     const feasibility = computeFeasibility(r, items)
-    expect(feasibility.status).toBe('ready-adjusted')
+    expect(feasibility.status).toBe('ready')
     expect(feasibility.missing).toHaveLength(0)
   })
 
@@ -425,6 +425,91 @@ describe('computeFeasibility — quantity-aware readiness', () => {
     expect(match.missingIngredients).toHaveLength(0)
     expect(match.hasSubstitutions).toBe(true)
     expect(feasibility.status).toBe('almost')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Optional-ingredient readiness audit: an optional ingredient must NEVER make
+// a recipe less ready — not by being missing, not by being short/low/reserved,
+// not by resolving via a substitute. Required-ingredient behaviour is
+// unchanged. Optional ingredients are still visible per-row via
+// ingredientStatus and still listed in computeFeasibility's missing/low arrays
+// for the grocery-list helpers — they just don't move `status`.
+// ---------------------------------------------------------------------------
+
+describe('computeFeasibility — optional ingredients never reduce readiness', () => {
+  const eggsItem = () => item({ id: 'eggs', name: 'Eggs', count: 6 })
+
+  it('a missing optional ingredient leaves an otherwise-ready recipe "ready"', () => {
+    const r = recipe({
+      id: 'opt-missing',
+      ingredients: [
+        ing({ id: 'i1', name: 'Eggs', itemId: 'eggs' }),
+        ing({ id: 'i2', name: 'Parmesan', itemId: 'parmesan', optional: true }),
+      ],
+    })
+    expect(computeFeasibility(r, [eggsItem()]).status).toBe('ready')
+  })
+
+  it('two missing optional ingredients still leave it "ready" (never needs-shopping)', () => {
+    const r = recipe({
+      id: 'opt-missing-two',
+      ingredients: [
+        ing({ id: 'i1', name: 'Eggs', itemId: 'eggs' }),
+        ing({ id: 'i2', name: 'Parmesan', itemId: 'parmesan', optional: true }),
+        ing({ id: 'i3', name: 'Chives', itemId: 'chives', optional: true }),
+      ],
+    })
+    expect(computeFeasibility(r, [eggsItem()]).status).toBe('ready')
+  })
+
+  it('a reserved / low optional ingredient does not drop it to "ready-adjusted"', () => {
+    const items = [
+      eggsItem(),
+      item({ id: 'butter', name: 'Butter', stockType: 'container', fill: 0.2, reserved: 0.5 }),
+    ]
+    const r = recipe({
+      id: 'opt-reserved',
+      ingredients: [
+        ing({ id: 'i1', name: 'Eggs', itemId: 'eggs' }),
+        ing({ id: 'i2', name: 'Butter', itemId: 'butter', optional: true }),
+      ],
+    })
+    expect(computeFeasibility(r, items).status).toBe('ready')
+  })
+
+  it('an optional ingredient satisfied only via a substitute does not create "ready-adjusted"', () => {
+    const items = [
+      eggsItem(),
+      item({ id: 'yellow-onion', name: 'Yellow Onion', stockType: 'divisible', fraction: 1 }),
+    ]
+    const r = recipe({
+      id: 'opt-substitute',
+      ingredients: [
+        ing({ id: 'i1', name: 'Eggs', itemId: 'eggs' }),
+        ing({ id: 'i2', name: 'Red onion', itemId: 'red-onion', optional: true }),
+      ],
+    })
+    expect(computeFeasibility(r, items).status).toBe('ready')
+  })
+
+  it('control: the SAME shortfalls on a REQUIRED ingredient still change status as before', () => {
+    // Missing required -> one-away (unchanged).
+    const missingReq = recipe({
+      id: 'req-missing',
+      ingredients: [ing({ id: 'i1', name: 'Parmesan', itemId: 'parmesan' })],
+    })
+    expect(computeFeasibility(missingReq, [eggsItem()]).status).toBe('one-away')
+
+    // Present-but-reserved required -> ready-adjusted (unchanged).
+    const reservedReq = recipe({
+      id: 'req-reserved',
+      ingredients: [ing({ id: 'i1', name: 'Butter', itemId: 'butter' })],
+    })
+    const reservedItems = [
+      item({ id: 'butter', name: 'Butter', stockType: 'container', fill: 0.2, reserved: 0.5 }),
+    ]
+    expect(computeFeasibility(reservedReq, reservedItems).status).toBe('ready-adjusted')
   })
 })
 

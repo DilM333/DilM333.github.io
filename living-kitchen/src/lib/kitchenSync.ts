@@ -84,6 +84,12 @@ export function rowToKitchenItem(row: KitchenItemRow, customCatalog: CatalogEntr
     stockType: row.stock_type,
     category: row.category,
     daysSincePurchase,
+    // "Last observed" signal for lib/inventoryConfidence — Supabase bumps
+    // updated_at on every stock write, and the store also stamps it locally on
+    // explicit edits so confidence recovers without waiting for a sync. Left
+    // undefined if the row somehow has none, so confidence falls back to
+    // daysSincePurchase.
+    updatedAt: row.updated_at ?? undefined,
     custom,
   }
   if (row.stock_type === 'countable') item.count = row.count_value ?? 0

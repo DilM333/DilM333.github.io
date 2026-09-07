@@ -146,10 +146,22 @@ let favoritesInitForHousehold: string | null = null
 let customIngredientsInitPromise: Promise<void> | null = null
 let customIngredientsInitForHousehold: string | null = null
 
+/**
+ * ISO "just observed this item's stock" timestamp. Any explicit local write to
+ * an item's stock stamps this so lib/inventoryConfidence treats the edit as a
+ * fresh observation immediately, instead of waiting for the Supabase round-trip
+ * (the server's own updated_at overwrites it on the next fetch).
+ */
+const observedNow = () => new Date().toISOString()
+
 const seedState = () => ({
   onboarded: false,
   people: seedPeople,
-  items: seedKitchen,
+  // Seeding the demo kitchen IS an observation ("here is your kitchen, now"),
+  // so stamp updatedAt — a fresh demo reads as fully trusted regardless of the
+  // hardcoded daysSincePurchase values (those drive the separate "use soon"
+  // hint, not inventory confidence).
+  items: seedKitchen.map((item) => ({ ...item, updatedAt: observedNow() })),
   recipes: seedRecipes,
   favorites: DEFAULT_FAVORITES,
   groceryList: seedGroceryList,
@@ -489,7 +501,9 @@ export const useKitchenStore = create<KitchenState>()(
         updateCount: (id, delta) => {
           set((state) => ({
             items: state.items.map((i) =>
-              i.id === id ? { ...i, count: Math.max(0, (i.count ?? 0) + delta) } : i,
+              i.id === id
+                ? { ...i, count: Math.max(0, (i.count ?? 0) + delta), updatedAt: observedNow() }
+                : i,
             ),
           }))
           const updated = get().items.find((i) => i.id === id)
@@ -498,7 +512,9 @@ export const useKitchenStore = create<KitchenState>()(
 
         updateFraction: (id, fraction) => {
           set((state) => ({
-            items: state.items.map((i) => (i.id === id ? { ...i, fraction } : i)),
+            items: state.items.map((i) =>
+              i.id === id ? { ...i, fraction, updatedAt: observedNow() } : i,
+            ),
           }))
           const updated = get().items.find((i) => i.id === id)
           if (updated) persistItem(updated)
@@ -506,7 +522,7 @@ export const useKitchenStore = create<KitchenState>()(
 
         updateFill: (id, fill) => {
           set((state) => ({
-            items: state.items.map((i) => (i.id === id ? { ...i, fill } : i)),
+            items: state.items.map((i) => (i.id === id ? { ...i, fill, updatedAt: observedNow() } : i)),
           }))
           const updated = get().items.find((i) => i.id === id)
           if (updated) persistItem(updated)
@@ -514,7 +530,9 @@ export const useKitchenStore = create<KitchenState>()(
 
         updateLevel: (id, level) => {
           set((state) => ({
-            items: state.items.map((i) => (i.id === id ? { ...i, level } : i)),
+            items: state.items.map((i) =>
+              i.id === id ? { ...i, level, updatedAt: observedNow() } : i,
+            ),
           }))
           const updated = get().items.find((i) => i.id === id)
           if (updated) persistItem(updated)
@@ -523,7 +541,14 @@ export const useKitchenStore = create<KitchenState>()(
         setReserved: (id, reserved, reservedFor) => {
           set((state) => ({
             items: state.items.map((i) =>
-              i.id === id ? { ...i, reserved, reservedFor: reserved > 0 ? reservedFor : undefined } : i,
+              i.id === id
+                ? {
+                    ...i,
+                    reserved,
+                    reservedFor: reserved > 0 ? reservedFor : undefined,
+                    updatedAt: observedNow(),
+                  }
+                : i,
             ),
           }))
           const updated = get().items.find((i) => i.id === id)
@@ -544,12 +569,15 @@ export const useKitchenStore = create<KitchenState>()(
                         fill: item.fill ?? i.fill,
                         level: item.level ?? i.level,
                         daysSincePurchase: 0,
+                        updatedAt: observedNow(),
                       }
                     : i,
                 ),
               }
             }
-            return { items: [...state.items, { ...item, daysSincePurchase: 0 }] }
+            return {
+              items: [...state.items, { ...item, daysSincePurchase: 0, updatedAt: observedNow() }],
+            }
           })
           const updated = get().items.find((i) => i.id === item.id)
           if (updated) persistItem(updated)
@@ -689,12 +717,15 @@ export const useKitchenStore = create<KitchenState>()(
             items: state.items.map((item) => {
               const deduction = deductions.find((d) => d.itemId === item.id)
               if (!deduction) return item
+              // Confirming the kitchen after cooking is an explicit observation
+              // of every deducted item, even one whose amount didn't change.
               return {
                 ...item,
                 count: deduction.newCount ?? item.count,
                 fraction: deduction.newFraction ?? item.fraction,
                 fill: deduction.newFill ?? item.fill,
                 level: deduction.newLevel ?? item.level,
+                updatedAt: observedNow(),
               }
             }),
             cookingSession: null,

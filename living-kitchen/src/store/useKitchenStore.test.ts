@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { catalog, toKitchenItem } from '../data/catalog'
 import { computeFeasibility, ingredientStatus, matchIngredient } from '../lib/kitchen'
+import { inventoryConfidence } from '../lib/inventoryConfidence'
 import { useKitchenStore } from './useKitchenStore'
 
 function catalogEntry(id: string) {
@@ -124,5 +125,76 @@ describe('addKitchenItem — restocking an existing item preserves an existing r
     expect(after.level).toBe('plenty')
     expect(after.reserved).toBe(before.reserved)
     expect(after.reservedFor).toBe(before.reservedFor)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Inventory confidence (Phase 2.1): an explicit local write to an item's stock
+// must count as a fresh observation immediately — the item's local `updatedAt`
+// updates on the spot, so lib/inventoryConfidence reads 'high' without waiting
+// for the Supabase round-trip. And a freshly seeded demo kitchen must not look
+// distrustworthy just because of hardcoded daysSincePurchase values.
+// ---------------------------------------------------------------------------
+
+describe('inventory confidence — explicit local writes are fresh observations', () => {
+  beforeEach(() => {
+    useKitchenStore.getState().resetDemo()
+  })
+
+  const get = (id: string) => useKitchenStore.getState().items.find((i) => i.id === id)!
+
+  /** Force an item to look untouched for a long time (no updatedAt, old purchase). */
+  const makeStale = (id: string) => {
+    useKitchenStore.setState((s) => ({
+      items: s.items.map((i) =>
+        i.id === id ? { ...i, updatedAt: undefined, daysSincePurchase: 400 } : i,
+      ),
+    }))
+    expect(inventoryConfidence(get(id))).toBe('low')
+  }
+
+  it('a fresh demo kitchen is entirely high-confidence', () => {
+    for (const item of useKitchenStore.getState().items) {
+      expect(inventoryConfidence(item)).toBe('high')
+    }
+  })
+
+  it('updateCount restores high confidence and stamps updatedAt', () => {
+    makeStale('eggs')
+    const t0 = Date.now()
+    useKitchenStore.getState().updateCount('eggs', -1)
+    const after = get('eggs')
+    expect(Date.parse(after.updatedAt!)).toBeGreaterThanOrEqual(t0)
+    expect(inventoryConfidence(after)).toBe('high')
+  })
+
+  it('updateLevel restores high confidence', () => {
+    makeStale('rice')
+    useKitchenStore.getState().updateLevel('rice', 'some')
+    expect(inventoryConfidence(get('rice'))).toBe('high')
+  })
+
+  it('updateFraction restores high confidence', () => {
+    makeStale('spinach')
+    useKitchenStore.getState().updateFraction('spinach', 0.5)
+    expect(inventoryConfidence(get('spinach'))).toBe('high')
+  })
+
+  it('setReserved restores high confidence', () => {
+    makeStale('butter')
+    useKitchenStore.getState().setReserved('butter', 0.25, 'cookies')
+    expect(inventoryConfidence(get('butter'))).toBe('high')
+  })
+
+  it('restocking via addKitchenItem restores high confidence', () => {
+    makeStale('butter')
+    useKitchenStore.getState().addKitchenItem(toKitchenItem(catalogEntry('butter')))
+    expect(inventoryConfidence(get('butter'))).toBe('high')
+  })
+
+  it('confirming the kitchen after cooking (finishCooking) restores high confidence', () => {
+    makeStale('eggs')
+    useKitchenStore.getState().finishCooking([{ itemId: 'eggs', newCount: 2 }])
+    expect(inventoryConfidence(get('eggs'))).toBe('high')
   })
 })

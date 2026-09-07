@@ -312,3 +312,106 @@ describe('matchRecipe — substitute awareness', () => {
     expect(match.ingredientMatches[0].kind).toBe('exact')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Inventory-confidence hint (Phase 2.1). matchRecipe exposes
+// `lowConfidenceRequired` — resolved required ingredients whose matched
+// kitchen item Euko hasn't confirmed lately. It's a non-destructive hint only:
+// isReady / matchPercent / requiredMissing / ranking must be untouched.
+// (daysSincePurchase is an absolute day count, so these are time-stable
+// without mocking the clock.)
+// ---------------------------------------------------------------------------
+
+describe('matchRecipe — lowConfidenceRequired hint', () => {
+  it('lists a resolved required ingredient whose stock is stale, without changing readiness', () => {
+    const items = [
+      item({ id: 'eggs', name: 'Eggs', category: 'Dairy', count: 6 }), // fresh -> high
+      item({ id: 'milk', name: 'Milk', category: 'Dairy', stockType: 'container', fill: 1, daysSincePurchase: 90 }),
+    ]
+    const r = recipe({
+      id: 'pancakes',
+      ingredients: [
+        ing({ id: 'i1', name: 'Eggs', itemId: 'eggs' }),
+        ing({ id: 'i2', name: 'Milk', itemId: 'milk' }),
+      ],
+    })
+
+    const match = matchRecipe(r, items)
+
+    expect(match.isReady).toBe(true)
+    expect(match.matchPercent).toBe(100)
+    expect(match.requiredMissing).toBe(0)
+    expect(match.lowConfidenceRequired.map((m) => m.ingredient.name)).toEqual(['Milk'])
+  })
+
+  it('is empty when every required ingredient was confirmed recently', () => {
+    const items = [
+      item({ id: 'eggs', name: 'Eggs', category: 'Dairy', count: 6, daysSincePurchase: 1 }),
+      item({ id: 'milk', name: 'Milk', category: 'Dairy', stockType: 'container', fill: 1, daysSincePurchase: 1 }),
+    ]
+    const r = recipe({
+      id: 'pancakes-fresh',
+      ingredients: [
+        ing({ id: 'i1', name: 'Eggs', itemId: 'eggs' }),
+        ing({ id: 'i2', name: 'Milk', itemId: 'milk' }),
+      ],
+    })
+    expect(matchRecipe(r, items).lowConfidenceRequired).toEqual([])
+  })
+
+  it('never lists an OPTIONAL ingredient, however stale', () => {
+    const items = [
+      item({ id: 'eggs', name: 'Eggs', category: 'Dairy', count: 6, daysSincePurchase: 1 }),
+      item({ id: 'parmesan', name: 'Parmesan', category: 'Dairy', stockType: 'staple', level: 'some', daysSincePurchase: 300 }),
+    ]
+    const r = recipe({
+      id: 'carbonara',
+      ingredients: [
+        ing({ id: 'i1', name: 'Eggs', itemId: 'eggs' }),
+        ing({ id: 'i2', name: 'Parmesan', itemId: 'parmesan', optional: true }),
+      ],
+    })
+    expect(matchRecipe(r, items).lowConfidenceRequired).toEqual([])
+  })
+
+  it('does not list a missing required ingredient (only resolved ones)', () => {
+    const items = [
+      item({ id: 'eggs', name: 'Eggs', category: 'Dairy', count: 6, daysSincePurchase: 200 }),
+    ]
+    const r = recipe({
+      id: 'needs-rice',
+      ingredients: [
+        ing({ id: 'i1', name: 'Eggs', itemId: 'eggs' }),
+        ing({ id: 'i2', name: 'Rice', itemId: 'rice' }), // missing
+      ],
+    })
+    const match = matchRecipe(r, items)
+    expect(match.isReady).toBe(false)
+    expect(match.requiredMissing).toBe(1)
+    expect(match.lowConfidenceRequired.map((m) => m.ingredient.name)).toEqual(['Eggs'])
+  })
+
+  it('low confidence does not change ranking order (still fewest-missing, then match%, then name)', () => {
+    const items = [
+      item({ id: 'eggs', name: 'Eggs', category: 'Dairy', count: 6, daysSincePurchase: 400 }),
+      item({ id: 'rice', name: 'Rice', category: 'Grains', stockType: 'staple', level: 'plenty', daysSincePurchase: 1 }),
+    ]
+    const staleReady = recipe({
+      id: 'stale-ready',
+      name: 'Stale Ready',
+      ingredients: [ing({ id: 'i1', name: 'Eggs', itemId: 'eggs' })],
+    })
+    const freshOneAway = recipe({
+      id: 'fresh-one-away',
+      name: 'Fresh One Away',
+      ingredients: [
+        ing({ id: 'i1', name: 'Rice', itemId: 'rice' }),
+        ing({ id: 'i2', name: 'Beans', itemId: 'beans' }),
+      ],
+    })
+    const ranked = rankRecipes([freshOneAway, staleReady], items)
+    // The stale-but-ready recipe still ranks first — confidence is not a tiebreaker.
+    expect(ranked[0].recipe.id).toBe('stale-ready')
+    expect(ranked[0].lowConfidenceRequired).toHaveLength(1)
+  })
+})
