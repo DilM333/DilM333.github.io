@@ -14,6 +14,17 @@
 -- constraint is never violated and RLS is untouched (this function is already
 -- SECURITY DEFINER).
 --
+-- Column qualification
+-- -------------------
+-- This function RETURNS TABLE(household_id uuid, status text, message text), so
+-- `household_id`, `status` and `message` are also in scope as OUT variables
+-- inside the body. Every query that touches a table column of the same name is
+-- therefore given an explicit table alias and fully qualified (e.g.
+-- `hm.household_id`) so PL/pgSQL can never confuse the column with the OUT
+-- variable — the "column reference \"household_id\" is ambiguous" failure.
+-- (UPDATE ... SET targets stay bare: that position only ever accepts a column
+-- of the update target, so it is unambiguous by rule and cannot take an alias.)
+--
 -- Safety gate for the move
 -- ------------------------
 -- A user is only auto-moved when leaving their current household is safe:
@@ -50,7 +61,10 @@ declare
   v_existing_role text;
   v_existing_member_count int;
 begin
-  select * into v_invite from public.household_invites where id = p_invite_id for update;
+  select hi.* into v_invite
+  from public.household_invites hi
+  where hi.id = p_invite_id
+  for update;
 
   if v_invite is null then
     return query select null::uuid, 'error', 'Invite not found';
@@ -68,7 +82,9 @@ begin
   end if;
 
   if v_invite.expires_at < now() then
-    update public.household_invites set status = 'expired' where id = p_invite_id;
+    update public.household_invites as hi
+      set status = 'expired'
+      where hi.id = p_invite_id;
     return query select null::uuid, 'error', 'Invite has expired';
     return;
   end if;
@@ -80,17 +96,17 @@ begin
 
   -- Already a member of the invited household: nothing to move, just settle the invite.
   if v_existing_household = v_invite.household_id then
-    update public.household_invites
+    update public.household_invites as hi
       set status = 'accepted', accepted_at = now()
-      where id = p_invite_id;
+      where hi.id = p_invite_id;
     return query select v_invite.household_id, 'already_in_household', 'You are already in this household';
     return;
   end if;
 
   if v_existing_household is not null then
     select count(*) into v_existing_member_count
-    from public.household_members
-    where household_id = v_existing_household;
+    from public.household_members hm
+    where hm.household_id = v_existing_household;
 
     -- Refuse to auto-move an owner out of a household that still has other
     -- members — that would leave those members without an owner. Deliberately
@@ -109,18 +125,18 @@ begin
     -- one. Move the single membership row in place (keeps
     -- household_members.user_id UNIQUE satisfied — no delete/insert) and leave
     -- every row in the old household untouched.
-    update public.household_members
+    update public.household_members as hm
       set household_id = v_invite.household_id,
           role = v_invite.role
-      where user_id = auth.uid();
+      where hm.user_id = auth.uid();
   else
     insert into public.household_members (household_id, user_id, role)
     values (v_invite.household_id, auth.uid(), v_invite.role);
   end if;
 
-  update public.household_invites
+  update public.household_invites as hi
     set status = 'accepted', accepted_at = now()
-    where id = p_invite_id;
+    where hi.id = p_invite_id;
 
   return query select v_invite.household_id, 'accepted', 'Joined household';
 end;
