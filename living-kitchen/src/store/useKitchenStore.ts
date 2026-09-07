@@ -53,6 +53,16 @@ interface KitchenState {
 
   /** Household currently synced to Supabase, set once auth resolves it. */
   householdId: string | null
+  /**
+   * The household the persisted local collections (items / groceryList /
+   * favorites / customCatalog) were last fully synced from. Lets each
+   * init*Sync tell a genuine first upload (null -> id) apart from a household
+   * *switch* (id A -> id B) — e.g. accepting an invite, or a second account on
+   * a shared device. On a switch the local collections belong to the previous
+   * household and must never be re-uploaded into the new one (that would
+   * silently merge two kitchens). Persisted so this holds across a reload.
+   */
+  syncedHouseholdId: string | null
   /** True until the initial Supabase fetch (and first-migration upload, if any) finishes. */
   kitchenLoading: boolean
   /** Set when a Supabase read/write for kitchen items failed (RLS or otherwise). */
@@ -87,6 +97,9 @@ interface KitchenState {
 
   initCustomIngredientsSync: (householdId: string) => Promise<void>
   resetCustomIngredientsSync: () => void
+
+  /** Records that every collection has finished syncing from `householdId`. */
+  markHouseholdSynced: (householdId: string) => void
 
   updateCount: (id: string, delta: number) => void
   updateFraction: (id: string, fraction: number) => void
@@ -252,9 +265,20 @@ export const useKitchenStore = create<KitchenState>()(
         })
       }
 
+      // True when we're about to sync a *different* household than the one the
+      // persisted local collections came from — i.e. the user switched
+      // households (accepted an invite) or a second account signed in on this
+      // device. In that case the local rows belong to the old household and
+      // must be dropped, never uploaded into the new one.
+      const isHouseholdSwitch = (householdId: string) => {
+        const synced = get().syncedHouseholdId
+        return synced != null && synced !== householdId
+      }
+
       return {
         ...seedState(),
         householdId: null,
+        syncedHouseholdId: null,
         kitchenLoading: true,
         kitchenSyncError: null,
         groceryLoading: true,
@@ -272,7 +296,15 @@ export const useKitchenStore = create<KitchenState>()(
             return kitchenInitPromise
           }
           kitchenInitForHousehold = householdId
-          set({ householdId, kitchenLoading: true, kitchenSyncError: null })
+          set({
+            householdId,
+            kitchenLoading: true,
+            kitchenSyncError: null,
+            // Switched households: the persisted items are the old household's.
+            // Clearing them here also disables the "empty target -> upload
+            // local" branch below, so the two kitchens never merge.
+            ...(isHouseholdSwitch(householdId) ? { items: [] } : null),
+          })
 
           kitchenInitPromise = (async () => {
             const { customCatalog, items: localItems } = get()
@@ -312,7 +344,12 @@ export const useKitchenStore = create<KitchenState>()(
             return groceryInitPromise
           }
           groceryInitForHousehold = householdId
-          set({ householdId, groceryLoading: true, groceryListSyncError: null })
+          set({
+            householdId,
+            groceryLoading: true,
+            groceryListSyncError: null,
+            ...(isHouseholdSwitch(householdId) ? { groceryList: [] } : null),
+          })
 
           groceryInitPromise = (async () => {
             const { customCatalog, groceryList: localItems } = get()
@@ -353,7 +390,12 @@ export const useKitchenStore = create<KitchenState>()(
             return favoritesInitPromise
           }
           favoritesInitForHousehold = householdId
-          set({ householdId, favoritesLoading: true, favoritesSyncError: null })
+          set({
+            householdId,
+            favoritesLoading: true,
+            favoritesSyncError: null,
+            ...(isHouseholdSwitch(householdId) ? { favorites: [] } : null),
+          })
 
           favoritesInitPromise = (async () => {
             const { favorites: localFavorites } = get()
@@ -390,7 +432,12 @@ export const useKitchenStore = create<KitchenState>()(
             return customIngredientsInitPromise
           }
           customIngredientsInitForHousehold = householdId
-          set({ householdId, customIngredientsLoading: true, customIngredientsSyncError: null })
+          set({
+            householdId,
+            customIngredientsLoading: true,
+            customIngredientsSyncError: null,
+            ...(isHouseholdSwitch(householdId) ? { customCatalog: [] } : null),
+          })
 
           customIngredientsInitPromise = (async () => {
             const { customCatalog: localEntries } = get()
@@ -428,6 +475,15 @@ export const useKitchenStore = create<KitchenState>()(
           customIngredientsInitPromise = null
           customIngredientsInitForHousehold = null
           set({ customIngredientsLoading: false, customIngredientsSyncError: null })
+        },
+
+        // Called by App once all four collections have finished syncing from
+        // `householdId`. Deferring the write to here (rather than each
+        // init*Sync) is what lets every init still observe the *previous*
+        // syncedHouseholdId and detect a household switch — see
+        // isHouseholdSwitch above.
+        markHouseholdSynced: (householdId) => {
+          if (get().syncedHouseholdId !== householdId) set({ syncedHouseholdId: householdId })
         },
 
         updateCount: (id, delta) => {
@@ -664,6 +720,7 @@ export const useKitchenStore = create<KitchenState>()(
         favorites: s.favorites,
         groceryList: s.groceryList,
         customCatalog: s.customCatalog,
+        syncedHouseholdId: s.syncedHouseholdId,
       }),
     },
   ),

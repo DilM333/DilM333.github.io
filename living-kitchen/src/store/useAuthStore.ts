@@ -23,8 +23,20 @@ interface AuthState {
   householdLoading: boolean
   /** Set when Supabase RLS blocked household setup — contains the required policy. */
   householdError: string | null
-  /** Set instead of auto-creating a personal household when the signed-in email has a pending invite. */
+  /**
+   * Set when the signed-in email has a pending invite the user hasn't acted on
+   * yet — shown as an explicit "Join" prompt. Populated even when the user
+   * already belongs to a household (their own auto-created "My Kitchen"), so an
+   * existing-account invitee isn't silently dropped straight into their own
+   * kitchen with no way to accept. Never auto-accepted.
+   */
   pendingInvite: PendingInviteForUser | null
+  /**
+   * True when accepting `pendingInvite` would move the user out of a household
+   * they already belong to (rather than just creating their first one). Drives
+   * the wording of the decline action and a heads-up in the prompt.
+   */
+  inviteReplacesHousehold: boolean
   /** True while accepting/declining `pendingInvite`. */
   inviteResolving: boolean
   inviteError: string | null
@@ -61,11 +73,15 @@ function friendlyAuthError(raw: string): string {
 }
 
 export const useAuthStore = create<AuthState>((set, get) => {
-  // Resolution order matters: a signed-in user who already belongs to a household
-  // must never be diverted into the invite flow (that's how we avoid silently
-  // merging/deleting an existing household), and a brand-new user's household
-  // must never be auto-created before we've checked whether they were invited
-  // into someone else's — otherwise they'd get a redundant personal "My Kitchen".
+  // Resolution order matters:
+  //  1. A pending invite the user hasn't acted on always wins — it's shown as an
+  //     explicit prompt, never auto-accepted. This check runs *even when the
+  //     user already belongs to a household*: an existing-account invitee still
+  //     needs a way to join. Accepting later moves them (see accept_household_invite);
+  //     declining keeps whatever household they already had.
+  //  2. Otherwise, an existing membership is used as-is.
+  //  3. Otherwise (brand-new user, no invite), a personal "My Kitchen" is created.
+  //     Creation must not happen before step 1 or they'd get a redundant kitchen.
   const resolveHousehold = (userId: string, email: string | null) => {
     if (resolvedForUserId === userId && (get().householdId || get().pendingInvite)) {
       return householdPromise ?? Promise.resolve()
@@ -73,7 +89,13 @@ export const useAuthStore = create<AuthState>((set, get) => {
     if (householdPromise && resolvedForUserId === userId) return householdPromise
 
     resolvedForUserId = userId
-    set({ householdLoading: true, householdError: null, pendingInvite: null, inviteError: null })
+    set({
+      householdLoading: true,
+      householdError: null,
+      pendingInvite: null,
+      inviteReplacesHousehold: false,
+      inviteError: null,
+    })
 
     householdPromise = (async () => {
       const { data: existing, error: readError } = await supabase
@@ -87,17 +109,29 @@ export const useAuthStore = create<AuthState>((set, get) => {
         set({ householdLoading: false, householdError: readError.message, householdId: null })
         return
       }
-      if (existing?.household_id) {
-        set({ householdLoading: false, householdError: null, householdId: existing.household_id as string })
-        return
-      }
 
+      const existingHouseholdId = (existing?.household_id as string | undefined) ?? null
+
+      // Pending-invite check happens before we settle on the existing household
+      // so an invited existing-account user gets the explicit Join prompt
+      // instead of landing straight in their own kitchen. An invite that points
+      // at the household they're *already* in is ignored (nothing to join).
       if (email) {
         const { invites } = await fetchMyPendingInvites()
-        if (invites.length > 0) {
-          set({ householdLoading: false, pendingInvite: invites[0] })
+        const invite = invites.find((i) => i.householdId !== existingHouseholdId) ?? null
+        if (invite) {
+          set({
+            householdLoading: false,
+            pendingInvite: invite,
+            inviteReplacesHousehold: existingHouseholdId != null,
+          })
           return
         }
+      }
+
+      if (existingHouseholdId) {
+        set({ householdLoading: false, householdError: null, householdId: existingHouseholdId })
+        return
       }
 
       const res = await ensureHouseholdForUser(userId)
@@ -124,6 +158,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
         householdLoading: false,
         householdError: null,
         pendingInvite: null,
+        inviteReplacesHousehold: false,
         inviteError: null,
       })
     }
@@ -138,6 +173,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
     householdLoading: false,
     householdError: null,
     pendingInvite: null,
+    inviteReplacesHousehold: false,
     inviteResolving: false,
     inviteError: null,
 
@@ -205,6 +241,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
         householdLoading: false,
         householdError: null,
         pendingInvite: null,
+        inviteReplacesHousehold: false,
         inviteError: null,
       })
     },
@@ -214,28 +251,50 @@ export const useAuthStore = create<AuthState>((set, get) => {
       if (!invite || get().inviteResolving) return
       set({ inviteResolving: true, inviteError: null })
       const res = await acceptHouseholdInvite(invite.id)
-      if (res.status === 'error') {
-        set({ inviteResolving: false, inviteError: res.message })
+      if (res.status === 'error' || !res.householdId) {
+        set({
+          inviteResolving: false,
+          inviteError: res.message || 'Could not join this household. Try again.',
+        })
         return
       }
-      // 'accepted' and 'already_in_household' both resolve to a real household id.
+      // 'accepted' (a fresh join or a move out of the user's old household) and
+      // 'already_in_household' both resolve to the invited household id. Setting
+      // householdId here re-runs App's sync effect, which reloads kitchen /
+      // grocery / favorites / custom-ingredient data for the new household.
       set({
         inviteResolving: false,
         pendingInvite: null,
+        inviteReplacesHousehold: false,
         householdId: res.householdId,
         householdError: null,
       })
     },
 
+    // "Not now" / "Keep my kitchen": leave the invite pending in the database
+    // (they can still accept later) and fall back to the household they already
+    // have — or create their first one if they're a brand-new user. Idempotent
+    // via ensureHouseholdForUser, so an existing user keeps their exact kitchen.
     declinePendingInvite: async () => {
       const user = get().user
       if (!user || get().inviteResolving) return
       set({ inviteResolving: true, inviteError: null })
       const res = await ensureHouseholdForUser(user.id)
       if (res.error) {
-        set({ inviteResolving: false, householdError: res.error, pendingInvite: null })
+        set({
+          inviteResolving: false,
+          householdError: res.error,
+          pendingInvite: null,
+          inviteReplacesHousehold: false,
+        })
       } else {
-        set({ inviteResolving: false, pendingInvite: null, householdId: res.householdId, householdError: null })
+        set({
+          inviteResolving: false,
+          pendingInvite: null,
+          inviteReplacesHousehold: false,
+          householdId: res.householdId,
+          householdError: null,
+        })
       }
     },
   }

@@ -47,6 +47,7 @@ function Splash({ label = 'Euko' }: { label?: string }) {
 
 function InvitePrompt() {
   const invite = useAuthStore((s) => s.pendingInvite)
+  const replacesHousehold = useAuthStore((s) => s.inviteReplacesHousehold)
   const resolving = useAuthStore((s) => s.inviteResolving)
   const inviteError = useAuthStore((s) => s.inviteError)
   const acceptPendingInvite = useAuthStore((s) => s.acceptPendingInvite)
@@ -67,6 +68,13 @@ function InvitePrompt() {
         </p>
       </div>
 
+      {replacesHousehold && (
+        <FormNotice tone="warning">
+          You can only be in one kitchen at a time, so joining moves you out of your current
+          &ldquo;My Kitchen&rdquo;. Its items stay saved but won&apos;t be shared here.
+        </FormNotice>
+      )}
+
       {inviteError && <FormNotice tone="error">{inviteError}</FormNotice>}
 
       <button
@@ -81,7 +89,7 @@ function InvitePrompt() {
         disabled={resolving}
         className="rounded-xl2 border border-ink/20 bg-white py-3.5 text-center text-base font-bold text-ink/80 transition hover:border-ink/35 disabled:opacity-40"
       >
-        Start my own kitchen instead
+        {replacesHousehold ? 'Not now — keep my kitchen' : 'Start my own kitchen instead'}
       </button>
     </div>
   )
@@ -135,6 +143,7 @@ export default function App() {
   const resetFavoritesSync = useKitchenStore((s) => s.resetFavoritesSync)
   const initCustomIngredientsSync = useKitchenStore((s) => s.initCustomIngredientsSync)
   const resetCustomIngredientsSync = useKitchenStore((s) => s.resetCustomIngredientsSync)
+  const markHouseholdSynced = useKitchenStore((s) => s.markHouseholdSynced)
 
   useEffect(() => {
     initAuth()
@@ -146,12 +155,21 @@ export default function App() {
       // matching its name against the custom catalog, so that catalog needs
       // to be loaded first — otherwise a custom kitchen item fetched before
       // its catalog entry arrives would fall back to a generic slug.
+      //
+      // markHouseholdSynced runs only after all four have settled, so each
+      // init still sees the *previous* syncedHouseholdId and can tell a
+      // household switch (accepting an invite) apart from a first sign-in —
+      // that's what stops the old household's local data being uploaded into
+      // the newly-joined one.
       void (async () => {
         await initCustomIngredientsSync(householdId)
-        void initKitchenSync(householdId)
-        void initGroceryListSync(householdId)
+        await Promise.all([
+          initKitchenSync(householdId),
+          initGroceryListSync(householdId),
+          initFavoritesSync(householdId),
+        ])
+        markHouseholdSynced(householdId)
       })()
-      void initFavoritesSync(householdId)
     } else {
       resetKitchenSync()
       resetGroceryListSync()
@@ -168,6 +186,7 @@ export default function App() {
     resetFavoritesSync,
     initCustomIngredientsSync,
     resetCustomIngredientsSync,
+    markHouseholdSynced,
   ])
 
   if (initializing) {
