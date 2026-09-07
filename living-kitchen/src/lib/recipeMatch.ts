@@ -1,4 +1,4 @@
-import type { KitchenItem, Recipe, RecipeIngredient } from '../data/types'
+import type { Feasibility, KitchenItem, Recipe, RecipeIngredient } from '../data/types'
 import {
   matchIngredient,
   quantityStatus,
@@ -169,4 +169,45 @@ export function rankRecipes(recipes: Recipe[], items: KitchenItem[]): RecipeMatc
 export function matchStatusLabel(match: RecipeMatch): string {
   if (match.isReady) return 'Ready to make'
   return `${match.requiredMissing} ingredient${match.requiredMissing === 1 ? '' : 's'} missing`
+}
+
+/**
+ * Joins ingredient names for the "worth checking …" hint:
+ *   [a]        -> "a"
+ *   [a, b]     -> "a and b"
+ *   [a, b, c]  -> "a, b, and 1 more"
+ *   [a…e]      -> "a, b, and 3 more"
+ * Names past the first two are summarised as a count so the line stays short.
+ */
+export function formatCheckList(names: string[]): string {
+  if (names.length === 0) return ''
+  if (names.length === 1) return names[0]
+  if (names.length === 2) return `${names[0]} and ${names[1]}`
+  const extra = names.length - 2
+  return `${names[0]}, ${names[1]}, and ${extra} more`
+}
+
+/**
+ * A light, non-alarming nudge for an *otherwise-cookable* recipe that leans on
+ * required ingredients Euko hasn't had recent contact with
+ * (`RecipeMatch.lowConfidenceRequired`). Read-only for now.
+ *
+ * Returns null unless the recipe reads as 'ready' / 'ready-adjusted' AND there
+ * is at least one such ingredient. `feasibilityStatus` is passed in by the
+ * caller (from computeFeasibility) so this never re-derives readiness — it only
+ * decides whether to *phrase* a hint. Low-confidence never affects whether an
+ * ingredient counts as available; this is purely a suggestion to double-check.
+ *
+ *   "Looks ready — worth checking milk"
+ *   "Looks ready — worth checking milk and spinach"
+ *   "Looks ready — worth checking milk, spinach, and 1 more"
+ */
+export function lowConfidenceHint(
+  match: RecipeMatch,
+  feasibilityStatus: Feasibility,
+): string | null {
+  if (feasibilityStatus !== 'ready' && feasibilityStatus !== 'ready-adjusted') return null
+  const names = Array.from(new Set(match.lowConfidenceRequired.map((m) => m.ingredient.name)))
+  if (names.length === 0) return null
+  return `Looks ready — worth checking ${formatCheckList(names)}`
 }

@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { KitchenItem, Recipe, RecipeIngredient } from '../data/types'
+import { computeFeasibility } from './kitchen'
 import {
+  formatCheckList,
   isIngredientAvailable,
+  lowConfidenceHint,
   matchIngredient,
   matchRecipe,
   matchStatusLabel,
@@ -413,5 +416,142 @@ describe('matchRecipe — lowConfidenceRequired hint', () => {
     // The stale-but-ready recipe still ranks first — confidence is not a tiebreaker.
     expect(ranked[0].recipe.id).toBe('stale-ready')
     expect(ranked[0].lowConfidenceRequired).toHaveLength(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// "Worth checking …" hint (Phase 2.2). Read-only, non-alarming nudge for an
+// otherwise-cookable recipe that leans on required ingredients Euko hasn't
+// seen lately. Never touches readiness — it only decides whether/how to phrase
+// a line. daysSincePurchase is an absolute day count so these are clock-stable.
+// ---------------------------------------------------------------------------
+
+describe('formatCheckList', () => {
+  it('formats 0, 1, 2, 3 and 5 names', () => {
+    expect(formatCheckList([])).toBe('')
+    expect(formatCheckList(['milk'])).toBe('milk')
+    expect(formatCheckList(['milk', 'spinach'])).toBe('milk and spinach')
+    expect(formatCheckList(['milk', 'spinach', 'eggs'])).toBe('milk, spinach, and 1 more')
+    expect(formatCheckList(['milk', 'spinach', 'eggs', 'butter', 'rice'])).toBe(
+      'milk, spinach, and 3 more',
+    )
+  })
+})
+
+describe('lowConfidenceHint', () => {
+  /** A recipe whose required ingredients all resolve, `staleNames` of them to low-confidence items. */
+  const staleRecipe = (freshNames: string[], staleNames: string[], optionalStale: string[] = []) => {
+    const mk = (name: string, stale: boolean, optional = false) => ({
+      ing: ing({ id: `ing-${name}`, name, itemId: name, optional }),
+      item: item({
+        id: name,
+        name,
+        category: 'Dairy',
+        count: 5,
+        daysSincePurchase: stale ? 400 : 1,
+      }),
+    })
+    const parts = [
+      ...freshNames.map((n) => mk(n, false)),
+      ...staleNames.map((n) => mk(n, true)),
+      ...optionalStale.map((n) => mk(n, true, true)),
+    ]
+    return {
+      recipe: recipe({ id: 'r', ingredients: parts.map((p) => p.ing) }),
+      items: parts.map((p) => p.item),
+    }
+  }
+
+  it('one stale required ingredient (status ready)', () => {
+    const { recipe: r, items } = staleRecipe(['flour'], ['milk'])
+    expect(lowConfidenceHint(matchRecipe(r, items), 'ready')).toBe(
+      'Looks ready — worth checking milk',
+    )
+  })
+
+  it('two stale required ingredients', () => {
+    const { recipe: r, items } = staleRecipe(['flour'], ['milk', 'spinach'])
+    expect(lowConfidenceHint(matchRecipe(r, items), 'ready')).toBe(
+      'Looks ready — worth checking milk and spinach',
+    )
+  })
+
+  it('three or more stale required ingredients summarise the tail', () => {
+    const { recipe: r, items } = staleRecipe([], ['milk', 'spinach', 'eggs', 'butter'])
+    expect(lowConfidenceHint(matchRecipe(r, items), 'ready')).toBe(
+      'Looks ready — worth checking milk, spinach, and 2 more',
+    )
+  })
+
+  it('shows for ready-adjusted too', () => {
+    const { recipe: r, items } = staleRecipe(['flour'], ['milk'])
+    expect(lowConfidenceHint(matchRecipe(r, items), 'ready-adjusted')).toBe(
+      'Looks ready — worth checking milk',
+    )
+  })
+
+  it('is hidden for almost / one-away / needs-shopping even with a stale required ingredient', () => {
+    const { recipe: r, items } = staleRecipe(['flour'], ['milk'])
+    const match = matchRecipe(r, items)
+    expect(lowConfidenceHint(match, 'almost')).toBeNull()
+    expect(lowConfidenceHint(match, 'one-away')).toBeNull()
+    expect(lowConfidenceHint(match, 'needs-shopping')).toBeNull()
+  })
+
+  it('is null when every required ingredient was seen recently', () => {
+    const { recipe: r, items } = staleRecipe(['flour', 'milk'], [])
+    expect(lowConfidenceHint(matchRecipe(r, items), 'ready')).toBeNull()
+  })
+
+  it('ignores an OPTIONAL low-confidence ingredient', () => {
+    const { recipe: r, items } = staleRecipe(['flour'], [], ['parmesan'])
+    expect(lowConfidenceHint(matchRecipe(r, items), 'ready')).toBeNull()
+  })
+
+  it('preserves recipe ingredient order in the name list', () => {
+    const { recipe: r, items } = staleRecipe([], ['spinach', 'milk'])
+    expect(lowConfidenceHint(matchRecipe(r, items), 'ready')).toBe(
+      'Looks ready — worth checking spinach and milk',
+    )
+  })
+
+  it('de-duplicates when two ingredients resolve to the same low-confidence item', () => {
+    const items = [item({ id: 'milk', name: 'Milk', category: 'Dairy', count: 5, daysSincePurchase: 400 })]
+    const r = recipe({
+      id: 'double-milk',
+      ingredients: [
+        ing({ id: 'a', name: 'Milk', itemId: 'milk' }),
+        ing({ id: 'b', name: 'Milk', itemId: 'milk' }),
+      ],
+    })
+    expect(lowConfidenceHint(matchRecipe(r, items), 'ready')).toBe(
+      'Looks ready — worth checking Milk',
+    )
+  })
+
+  it('integrates with the real computeFeasibility status', () => {
+    // All required resolve; one is stale -> feasibility 'ready' -> hint shows.
+    const ready = staleRecipe(['flour'], ['milk'])
+    const readyStatus = computeFeasibility(ready.recipe, ready.items).status
+    expect(readyStatus).toBe('ready')
+    expect(lowConfidenceHint(matchRecipe(ready.recipe, ready.items), readyStatus)).toBe(
+      'Looks ready — worth checking milk',
+    )
+
+    // A missing required ingredient -> feasibility 'one-away' -> no hint, even
+    // though another required ingredient is stale.
+    const r = recipe({
+      id: 'missing-plus-stale',
+      ingredients: [
+        ing({ id: 'i1', name: 'milk', itemId: 'milk' }),
+        ing({ id: 'i2', name: 'yeast', itemId: 'yeast' }),
+      ],
+    })
+    const partialItems = [
+      item({ id: 'milk', name: 'milk', category: 'Dairy', count: 5, daysSincePurchase: 400 }),
+    ]
+    const status = computeFeasibility(r, partialItems).status
+    expect(status).toBe('one-away')
+    expect(lowConfidenceHint(matchRecipe(r, partialItems), status)).toBeNull()
   })
 })

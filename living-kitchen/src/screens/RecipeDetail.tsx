@@ -4,7 +4,7 @@ import SectionHeader from '../components/SectionHeader'
 import StatusPill from '../components/StatusPill'
 import { groceryItemForIngredient } from '../lib/grocery'
 import { computeFeasibility, ingredientStatus } from '../lib/kitchen'
-import { matchRecipe, matchStatusLabel } from '../lib/recipeMatch'
+import { lowConfidenceHint, matchRecipe, matchStatusLabel } from '../lib/recipeMatch'
 import { useKitchenStore } from '../store/useKitchenStore'
 
 const STATUS_ICON: Record<string, string> = { ok: '✓', low: '⚠️', missing: '❌' }
@@ -29,6 +29,7 @@ export default function RecipeDetail() {
 
   const { status, missing, low } = computeFeasibility(recipe, items)
   const match = matchRecipe(recipe, items)
+  const checkHint = lowConfidenceHint(match, status)
   const isFavorite = favorites.includes(recipe.id)
   const needsAdapt = status !== 'ready'
 
@@ -69,6 +70,7 @@ export default function RecipeDetail() {
           {recipe.emoji}
         </div>
         <StatusPill status={status} />
+        {checkHint && <p className="text-xs text-ink/50">{checkHint}</p>}
         <h1 className="font-display text-2xl font-semibold text-ink">{recipe.name}</h1>
         <p className="text-sm text-ink/60">{recipe.description}</p>
         <div className="flex items-center gap-3 text-xs font-semibold text-ink/50">

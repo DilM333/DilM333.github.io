@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import type { KitchenItem, Recipe } from '../data/types'
 import { groceryItemForIngredient } from '../lib/grocery'
 import { computeFeasibility, isUseSoon } from '../lib/kitchen'
-import { matchRecipe, matchStatusLabel } from '../lib/recipeMatch'
+import { lowConfidenceHint, matchRecipe, matchStatusLabel } from '../lib/recipeMatch'
 import { useKitchenStore } from '../store/useKitchenStore'
 import StatusPill from './StatusPill'
 
@@ -31,8 +31,15 @@ export default function RecipeCard({ recipe, items }: Props) {
     shortNotOnList.forEach((ing) => addToGroceryList(groceryItemForIngredient(ing, `For ${recipe.name}`)))
   }
 
+  // Read-only nudge for an otherwise-cookable recipe leaning on ingredients
+  // Euko hasn't seen lately. Only non-null for ready / ready-adjusted, so it
+  // naturally only ever replaces those two detail lines.
+  const checkHint = lowConfidenceHint(match, status)
+
   let detail: string | null = null
-  if (status === 'ready') {
+  if (checkHint) {
+    detail = checkHint
+  } else if (status === 'ready') {
     detail = 'You have everything'
   } else if (status === 'ready-adjusted' && low[0]) {
     detail = `Adapt with what you have →`
