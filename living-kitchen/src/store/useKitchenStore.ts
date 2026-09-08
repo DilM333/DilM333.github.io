@@ -64,6 +64,16 @@ interface KitchenState {
    * silently merge two kitchens). Persisted so this holds across a reload.
    */
   syncedHouseholdId: string | null
+  /**
+   * Household ids for which the user has already dismissed ("Continue to
+   * Euko" or "Skip for now") the first-use kitchen setup nudge. A set rather
+   * than a single id — a user can join/switch households more than once
+   * (e.g. household A -> B -> back to A), and each one's dismissal must be
+   * remembered independently so switching back to A doesn't re-show it.
+   * Purely a local "have I shown this UI" memory; unrelated to
+   * syncedHouseholdId/isHouseholdSwitch, which is about data-merge safety.
+   */
+  kitchenSetupSeenHouseholds: string[]
   /** True until the initial Supabase fetch (and first-migration upload, if any) finishes. */
   kitchenLoading: boolean
   /** Set when a Supabase read/write for kitchen items failed (RLS or otherwise). */
@@ -101,6 +111,12 @@ interface KitchenState {
 
   /** Records that every collection has finished syncing from `householdId`. */
   markHouseholdSynced: (householdId: string) => void
+  /**
+   * Marks the first-use kitchen setup nudge as dismissed for the currently
+   * synced household — called by both "Continue to Euko" and "Skip for now",
+   * never conditioned on having added anything.
+   */
+  markKitchenSetupSeen: () => void
 
   updateCount: (id: string, delta: number) => void
   updateFraction: (id: string, fraction: number) => void
@@ -312,8 +328,18 @@ export const useKitchenStore = create<KitchenState>()(
 
       return {
         ...seedState(),
+        // A real account starts truthfully empty, not with the demo kitchen/
+        // grocery list/favorites seedState() otherwise provides — that demo
+        // data exists for resetDemo() and tests, never as the default for a
+        // genuine new household (see initKitchenSync/initGroceryListSync/
+        // initFavoritesSync's "Supabase empty -> upload local" bootstrap,
+        // which would otherwise silently upload it as if it were real).
+        items: [],
+        groceryList: [],
+        favorites: [],
         householdId: null,
         syncedHouseholdId: null,
+        kitchenSetupSeenHouseholds: [],
         kitchenLoading: true,
         kitchenSyncError: null,
         groceryLoading: true,
@@ -519,6 +545,12 @@ export const useKitchenStore = create<KitchenState>()(
         // isHouseholdSwitch above.
         markHouseholdSynced: (householdId) => {
           if (get().syncedHouseholdId !== householdId) set({ syncedHouseholdId: householdId })
+        },
+
+        markKitchenSetupSeen: () => {
+          const { householdId, kitchenSetupSeenHouseholds } = get()
+          if (householdId == null || kitchenSetupSeenHouseholds.includes(householdId)) return
+          set({ kitchenSetupSeenHouseholds: [...kitchenSetupSeenHouseholds, householdId] })
         },
 
         updateCount: (id, delta) => {
@@ -828,6 +860,7 @@ export const useKitchenStore = create<KitchenState>()(
         groceryList: s.groceryList,
         customCatalog: s.customCatalog,
         syncedHouseholdId: s.syncedHouseholdId,
+        kitchenSetupSeenHouseholds: s.kitchenSetupSeenHouseholds,
       }),
     },
   ),

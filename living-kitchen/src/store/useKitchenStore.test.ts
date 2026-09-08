@@ -536,3 +536,32 @@ describe('addToGroceryList — canonical dedup', () => {
     expect(list()).toHaveLength(1)
   })
 })
+
+describe('markKitchenSetupSeen', () => {
+  beforeEach(() => {
+    useKitchenStore.getState().resetDemo()
+    useKitchenStore.setState({ householdId: null, kitchenSetupSeenHouseholds: [] })
+  })
+
+  it('records the current household and is idempotent', () => {
+    useKitchenStore.setState({ householdId: 'house-a' })
+    useKitchenStore.getState().markKitchenSetupSeen()
+    useKitchenStore.getState().markKitchenSetupSeen()
+    expect(useKitchenStore.getState().kitchenSetupSeenHouseholds).toEqual(['house-a'])
+  })
+
+  it('does nothing when there is no current household', () => {
+    useKitchenStore.getState().markKitchenSetupSeen()
+    expect(useKitchenStore.getState().kitchenSetupSeenHouseholds).toEqual([])
+  })
+
+  it('accumulates independently across households — switching does not drop an earlier dismissal', () => {
+    useKitchenStore.setState({ householdId: 'house-a' })
+    useKitchenStore.getState().markKitchenSetupSeen()
+
+    useKitchenStore.setState({ householdId: 'house-b' })
+    useKitchenStore.getState().markKitchenSetupSeen()
+
+    expect(useKitchenStore.getState().kitchenSetupSeenHouseholds).toEqual(['house-a', 'house-b'])
+  })
+})

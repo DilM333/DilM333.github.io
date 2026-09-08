@@ -4,8 +4,10 @@ import BottomNav from './components/BottomNav'
 import FormNotice from './components/FormNotice'
 import { useAuthStore } from './store/useAuthStore'
 import { useKitchenStore } from './store/useKitchenStore'
+import { needsKitchenSetup } from './lib/needsKitchenSetup'
 import AuthScreen from './screens/AuthScreen'
 import Onboarding from './screens/Onboarding'
+import KitchenSetup from './screens/KitchenSetup'
 import Kitchen from './screens/Kitchen'
 import AddFood from './screens/AddFood'
 import WhatCanIMake from './screens/WhatCanIMake'
@@ -135,6 +137,9 @@ export default function App() {
 
   const onboarded = useKitchenStore((s) => s.onboarded)
   const kitchenLoading = useKitchenStore((s) => s.kitchenLoading)
+  const kitchenSyncError = useKitchenStore((s) => s.kitchenSyncError)
+  const items = useKitchenStore((s) => s.items)
+  const kitchenSetupSeenHouseholds = useKitchenStore((s) => s.kitchenSetupSeenHouseholds)
   const initKitchenSync = useKitchenStore((s) => s.initKitchenSync)
   const resetKitchenSync = useKitchenStore((s) => s.resetKitchenSync)
   const initGroceryListSync = useKitchenStore((s) => s.initGroceryListSync)
@@ -229,13 +234,39 @@ export default function App() {
     )
   }
 
+  // Confirmed-empty (Supabase-synced, not merely a fresh local cache) real
+  // household -> a one-time, dismissible nudge instead of dropping the user
+  // straight onto an empty Kitchen screen. Never shown while a sync is still
+  // loading (already excluded above) or failed (kitchenSyncError) — in
+  // either case `items` isn't a trustworthy read of the real household yet.
+  // kitchenSetupSeenHouseholds is keyed per household, not a single global
+  // flag, so switching to a different household re-evaluates independently.
+  const showKitchenSetup = needsKitchenSetup({
+    onboarded,
+    kitchenSyncError,
+    items,
+    householdId,
+    kitchenSetupSeenHouseholds,
+  })
+
   const focusMode = FOCUS_PATTERNS.some((p) => p.test(location.pathname))
-  const showNav = !focusMode && !(location.pathname === '/' && !onboarded)
+  const showNav = !focusMode && !(location.pathname === '/' && (!onboarded || showKitchenSetup))
 
   return (
     <Shell nav={showNav ? <BottomNav /> : undefined}>
       <Routes>
-        <Route path="/" element={onboarded ? <Navigate to="/kitchen" replace /> : <Onboarding />} />
+        <Route
+          path="/"
+          element={
+            !onboarded ? (
+              <Onboarding />
+            ) : showKitchenSetup ? (
+              <KitchenSetup />
+            ) : (
+              <Navigate to="/kitchen" replace />
+            )
+          }
+        />
         <Route path="/kitchen" element={<Kitchen />} />
         <Route path="/add" element={<AddFood />} />
         <Route path="/make" element={<WhatCanIMake />} />
