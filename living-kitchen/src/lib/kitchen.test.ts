@@ -70,13 +70,20 @@ describe('quarterGlyph', () => {
 })
 
 describe('suggestDeduction for divisible items', () => {
-  it('steps down by a quarter regardless of how many whole units are on hand', () => {
-    expect(suggestDeduction(divisibleItem(1), 1).newFraction).toBe(0.75)
-    expect(suggestDeduction(divisibleItem(0.25), 1).newFraction).toBe(0)
-    expect(suggestDeduction(divisibleItem(0), 1).newFraction).toBe(0)
+  it('with no explicit/structured amount, steps down by a quarter regardless of how many whole units are on hand', () => {
+    // No second argument -> the fixed fallback amount, unchanged from before
+    // requiredAmount/actualUsage-aware deduction existed.
+    expect(suggestDeduction(divisibleItem(1)).newFraction).toBe(0.75)
+    expect(suggestDeduction(divisibleItem(0.25)).newFraction).toBe(0)
+    expect(suggestDeduction(divisibleItem(0)).newFraction).toBe(0)
     // Regression: before generalizing past the old 0..1 ladder, this jumped
     // straight to 0.75 instead of decrementing by a quarter.
-    expect(suggestDeduction(divisibleItem(2.75), 1).newFraction).toBe(2.5)
+    expect(suggestDeduction(divisibleItem(2.75)).newFraction).toBe(2.5)
+  })
+
+  it('an explicit amount overrides the fallback and is still snapped to the quarter-step grid', () => {
+    expect(suggestDeduction(divisibleItem(1), 0.5).newFraction).toBe(0.5)
+    expect(suggestDeduction(divisibleItem(1), 1).newFraction).toBe(0)
   })
 })
 
@@ -111,6 +118,7 @@ function recipe(overrides: Partial<Recipe> & Pick<Recipe, 'id' | 'ingredients'>)
     effortLabel: 'Easy',
     effort: 'Normal',
     tags: [],
+    mealTypes: ['dinner'],
     description: 'A recipe for testing.',
     steps: [],
     ...overrides,

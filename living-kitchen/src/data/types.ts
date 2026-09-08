@@ -89,6 +89,16 @@ export interface RecipeStep {
 
 export type Effort = 'Bare minimum' | 'Normal' | 'I want to cook'
 
+/**
+ * When during the day/menu a recipe fits. Deliberately a list, not a single
+ * value — a recipe like an omelet is genuinely both breakfast and lunch, and
+ * forcing one exclusive bucket would make the "What can I make?" categories
+ * undercount recipes that legitimately belong in more than one. Distinct from
+ * `tags` (mood/attribute filtering — "quick", "vegetarian", "cheap") — this
+ * answers "when would I cook this", not "what kind of dish is it".
+ */
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'dessert' | 'side'
+
 export interface Recipe {
   id: string
   name: string
@@ -97,6 +107,8 @@ export interface Recipe {
   effortLabel: 'Easy' | 'Medium' | 'Involved'
   effort: Effort
   tags: string[]
+  /** At least one entry — see MealType. Order has no meaning beyond authoring convenience. */
+  mealTypes: MealType[]
   description: string
   ingredients: RecipeIngredient[]
   steps: RecipeStep[]

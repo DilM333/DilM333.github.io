@@ -1,9 +1,24 @@
-import type { Recipe } from '../data/types'
+import type { Recipe, RecipeIngredient } from '../data/types'
+import { fillLabel, fractionLabel } from '../lib/kitchen'
+import { matchIngredient } from '../lib/recipeMatch'
+import { usageControlFor, type UsageControl } from '../lib/actualUsageControl'
 import { useKitchenStore } from '../store/useKitchenStore'
 
-function parseLeadingNumber(text: string): number {
-  const match = text.match(/[\d.]+/)
-  return match ? parseFloat(match[0]) : 1
+interface TrackableIngredient {
+  ing: RecipeIngredient
+  control: UsageControl
+}
+
+/** How to display the current "actual" value for one control kind — divisible/container reuse the same fraction/fill vocabulary the rest of the app already shows kitchen stock in, rather than a raw decimal. */
+function displayActual(kind: 'countable' | 'divisible' | 'container', actual: number): string {
+  switch (kind) {
+    case 'divisible':
+      return fractionLabel(actual)
+    case 'container':
+      return fillLabel(actual)
+    default:
+      return `${actual}`
+  }
 }
 
 export default function ChangeSomethingSheet({
@@ -13,9 +28,28 @@ export default function ChangeSomethingSheet({
   recipe: Recipe
   onClose: () => void
 }) {
+  const items = useKitchenStore((s) => s.items)
   const cookingSession = useKitchenStore((s) => s.cookingSession)
   const setActualUsage = useKitchenStore((s) => s.setActualUsage)
-  const trackable = recipe.ingredients.filter((i) => i.itemId)
+
+  // Only ingredients that actually resolve to a real kitchen item (exact
+  // match or approved substitute) AND have a numeric usage control at all —
+  // usageControlFor returns null for staple items (no continuous quantity to
+  // edit) and is only ever given an already-matched item, never derived from
+  // the ingredient's originally-requested itemId. An ingredient with no
+  // matched item is excluded entirely: there is nothing in the kitchen for
+  // an "actual usage" number to apply to, and buildDeductionMap would skip
+  // it regardless.
+  const trackable = recipe.ingredients
+    .map((ing): TrackableIngredient | null => {
+      if (!ing.itemId) return null
+      const matched = matchIngredient(ing, items).matchedItem
+      if (!matched) return null
+      const control = usageControlFor(ing, matched)
+      if (!control) return null
+      return { ing, control }
+    })
+    .filter((t): t is TrackableIngredient => t != null)
 
   return (
     <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/50" onClick={onClose}>
@@ -30,10 +64,8 @@ export default function ChangeSomethingSheet({
         </p>
 
         <div className="mt-4 flex max-h-80 flex-col gap-3 overflow-y-auto">
-          {trackable.map((ing) => {
-            const expected = parseLeadingNumber(ing.quantity)
-            const unit = ing.quantity.replace(/^[\d.]+\s*/, '')
-            const actual = cookingSession?.actualUsage[ing.itemId!] ?? expected
+          {trackable.map(({ ing, control }) => {
+            const actual = cookingSession?.actualUsage[ing.itemId!] ?? control.initial
             return (
               <div
                 key={ing.id}
@@ -47,16 +79,16 @@ export default function ChangeSomethingSheet({
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setActualUsage(ing.itemId!, Math.max(0, actual - 1))}
+                    onClick={() => setActualUsage(ing.itemId!, Math.max(0, actual - control.step))}
                     className="flex h-7 w-7 items-center justify-center rounded-full bg-ink/5"
                   >
                     −
                   </button>
                   <span className="w-16 text-center text-xs font-bold tabular-nums">
-                    {actual} {unit}
+                    {displayActual(control.kind, actual)}
                   </span>
                   <button
-                    onClick={() => setActualUsage(ing.itemId!, actual + 1)}
+                    onClick={() => setActualUsage(ing.itemId!, actual + control.step)}
                     className="flex h-7 w-7 items-center justify-center rounded-full bg-ink/5"
                   >
                     +

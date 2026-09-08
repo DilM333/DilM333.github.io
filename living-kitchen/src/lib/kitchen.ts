@@ -205,7 +205,13 @@ export function usableAmount(item: KitchenItem): number {
 
 export type QuantityStatus = 'enough' | 'partial' | 'none' | 'unknown'
 
-const REQUIRED_UNIT_STOCK_TYPE: Record<RequiredUnit, StockType> = {
+/**
+ * Exported so recipe-validation tests can check a seeded `requiredUnit`
+ * against its ingredient's actual catalog `stockType` without duplicating
+ * this mapping — see data/recipes/recipes.test.ts. Not used by any runtime
+ * matching logic beyond `quantityStatus` below.
+ */
+export const REQUIRED_UNIT_STOCK_TYPE: Record<RequiredUnit, StockType> = {
   count: 'countable',
   fraction: 'divisible',
   fill: 'container',

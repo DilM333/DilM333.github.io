@@ -29,6 +29,7 @@ function recipe(overrides: Partial<Recipe> & Pick<Recipe, 'id' | 'ingredients'>)
     effortLabel: 'Easy',
     effort: 'Normal',
     tags: [],
+    mealTypes: ['dinner'],
     description: 'A recipe for testing.',
     steps: [],
     ...overrides,
