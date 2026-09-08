@@ -37,4 +37,111 @@ export const sideRecipes: Recipe[] = [
       { instruction: 'Serve warm.' },
     ],
   },
+  {
+    id: 'simple-green-salad-chickpeas',
+    name: 'Simple Green Salad with Chickpeas',
+    emoji: '🥗',
+    time: 10,
+    effortLabel: 'Easy',
+    effort: 'Bare minimum',
+    tags: ['light', 'vegetarian', 'quick'],
+    mealTypes: ['side', 'lunch'],
+    description: 'A basic salad bulked up with chickpeas so it can stand on its own.',
+    ingredients: [
+      // A head of lettuce yields a widely varying number of cups depending
+      // on variety (iceberg vs. romaine vs. butter lettuce) — too
+      // inconsistent to honestly approximate as a fraction of the divisible
+      // unit, unlike broccoli's more consistent floret yield elsewhere.
+      { id: 'i1', name: 'Lettuce', emoji: '🥬', quantity: '2 cups, chopped', itemId: 'lettuce' },
+      {
+        id: 'i2',
+        name: 'Chickpeas',
+        emoji: '🫘',
+        quantity: '1 can, drained',
+        itemId: 'chickpeas',
+        requiredAmount: 1,
+        requiredUnit: 'count',
+      },
+      {
+        id: 'i3',
+        name: 'Tomato',
+        emoji: '🍅',
+        quantity: '1, diced',
+        itemId: 'tomato',
+        requiredAmount: 1,
+        requiredUnit: 'count',
+      },
+      { id: 'i4', name: 'Olive oil', emoji: '🫒', quantity: '2 tbsp', itemId: 'olive-oil' },
+      { id: 'i5', name: 'Lemon', emoji: '🍋', quantity: 'juice of ½', itemId: 'lemon', optional: true },
+    ],
+    steps: [
+      { instruction: 'Toss lettuce, chickpeas, and tomato in a bowl.' },
+      { instruction: 'Drizzle with olive oil and lemon juice.' },
+      { instruction: 'Season with salt and pepper, then serve.' },
+    ],
+  },
+  {
+    id: 'garlic-butter-rice',
+    name: 'Garlic Butter Rice',
+    emoji: '🍚',
+    time: 20,
+    effortLabel: 'Easy',
+    effort: 'Bare minimum',
+    tags: ['cheap', 'quick'],
+    mealTypes: ['side'],
+    description: 'Simple rice finished with garlic and butter — pairs with almost anything.',
+    ingredients: [
+      {
+        id: 'i1',
+        name: 'Rice',
+        emoji: '🍚',
+        quantity: '2 cups, cooked',
+        itemId: 'rice',
+        // Rice is the whole point of this dish, same coarse staple-level
+        // threshold as chicken-and-rice's rice.
+        requiredAmount: 2,
+        requiredUnit: 'level',
+      },
+      { id: 'i2', name: 'Butter', emoji: '🧈', quantity: '2 tbsp', itemId: 'butter' },
+      { id: 'i3', name: 'Garlic', emoji: '🧄', quantity: '2 cloves, minced', itemId: 'garlic' },
+    ],
+    steps: [
+      { instruction: 'Cook the rice according to package directions.', timerMinutes: 15 },
+      { instruction: 'Melt butter in a pan, sauté garlic until fragrant.', timerMinutes: 1 },
+      { instruction: 'Stir the garlic butter through the cooked rice.' },
+      { instruction: 'Season with salt and serve.' },
+    ],
+  },
+  {
+    id: 'roasted-broccoli',
+    name: 'Roasted Broccoli',
+    emoji: '🥦',
+    time: 20,
+    effortLabel: 'Easy',
+    effort: 'Bare minimum',
+    tags: ['light', 'vegetarian', 'cheap'],
+    mealTypes: ['side'],
+    description: 'Caramelized roasted broccoli — the easiest side there is.',
+    ingredients: [
+      {
+        id: 'i1',
+        name: 'Broccoli',
+        emoji: '🥦',
+        quantity: '1 head, cut into florets',
+        itemId: 'broccoli',
+        // Whole head, same whole+quarter decimal convention as
+        // roasted-veggies' whole onion above.
+        requiredAmount: 1,
+        requiredUnit: 'fraction',
+      },
+      { id: 'i2', name: 'Olive oil', emoji: '🫒', quantity: '2 tbsp', itemId: 'olive-oil' },
+      { id: 'i3', name: 'Garlic', emoji: '🧄', quantity: '2 cloves, minced', itemId: 'garlic', optional: true },
+      { id: 'i4', name: 'Salt', emoji: '🧂', quantity: 'to taste', itemId: 'salt' },
+    ],
+    steps: [
+      { instruction: 'Toss broccoli with olive oil, garlic, and salt.' },
+      { instruction: 'Roast at 425°F, stirring once, until browned at the edges.', timerMinutes: 18 },
+      { instruction: 'Serve warm.' },
+    ],
+  },
 ]
