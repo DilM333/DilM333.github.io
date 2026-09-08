@@ -102,31 +102,114 @@ describe('Add Food -> Make: addKitchenItem + toKitchenItem against real seed rec
   })
 })
 
-describe('addKitchenItem — restocking an existing item preserves an existing reservation', () => {
+describe('addKitchenItem — tapping an already-stocked item never silently overwrites its amount', () => {
   beforeEach(() => {
     useKitchenStore.getState().resetDemo()
   })
 
-  it('does not silently forget the user\'s reservation intent when topping up stock', () => {
+  it('leaves an existing staple\'s level untouched (the "milk ¼ -> Full" bug, fixed at the store level)', () => {
     // Seed butter starts at level 'low' with reserved: 0.5 and reservedFor
-    // set ("half of what's on hand is reserved for something"). Restocking
-    // via Add Food must not erase that reservation — the user still means
-    // for that portion to be held back, regardless of how much more they
-    // just bought. (Note: `reserved` stays a 0..1 fraction of the *current*
-    // total, so what it now represents in absolute terms does shift when the
-    // total changes — that's an existing, unchanged property of the
-    // reservation model, not something this action should paper over by
-    // deleting the reservation outright.)
+    // set. Before this fix, calling addKitchenItem again (e.g. tapping
+    // "Butter" a second time in Add Food) silently reset level to 'plenty'
+    // — the default toKitchenItem(entry) supplies with no explicit amount.
+    // That must no longer be possible: only an explicit, user-confirmed
+    // restockKitchenItem call may change it now.
     const before = useKitchenStore.getState().items.find((i) => i.id === 'butter')!
+    expect(before.level).toBe('low')
     expect(before.reserved).toBe(0.5)
     expect(before.reservedFor).toBeDefined()
 
     useKitchenStore.getState().addKitchenItem(toKitchenItem(catalogEntry('butter')))
 
     const after = useKitchenStore.getState().items.find((i) => i.id === 'butter')!
-    expect(after.level).toBe('plenty')
+    expect(after.level).toBe('low')
     expect(after.reserved).toBe(before.reserved)
     expect(after.reservedFor).toBe(before.reservedFor)
+  })
+
+  it('leaves an existing divisible item\'s fraction untouched', () => {
+    const before = useKitchenStore.getState().items.find((i) => i.id === 'spinach')!.fraction
+    useKitchenStore.getState().addKitchenItem(toKitchenItem(catalogEntry('spinach')))
+    expect(useKitchenStore.getState().items.find((i) => i.id === 'spinach')!.fraction).toBe(before)
+  })
+
+  it('leaves an existing container item\'s fill untouched', () => {
+    const before = useKitchenStore.getState().items.find((i) => i.id === 'milk')!.fill
+    useKitchenStore.getState().addKitchenItem(toKitchenItem(catalogEntry('milk')))
+    expect(useKitchenStore.getState().items.find((i) => i.id === 'milk')!.fill).toBe(before)
+  })
+
+  it('still adds to an existing countable item\'s count (the one unambiguous case)', () => {
+    const before = useKitchenStore.getState().items.find((i) => i.id === 'eggs')!.count ?? 0
+    useKitchenStore.getState().addKitchenItem(toKitchenItem(catalogEntry('eggs')))
+    expect(useKitchenStore.getState().items.find((i) => i.id === 'eggs')!.count).toBe(before + 1)
+  })
+
+  it('locating an existing item for the amount picker does not itself mutate its stock', () => {
+    // Simulates what selecting a catalog result in Add Food does before the
+    // sheet is confirmed: look the item up, nothing else. No store action
+    // has fired, so state must be byte-for-byte unchanged.
+    const before = useKitchenStore.getState().items.find((i) => i.id === 'butter')!
+    const entry = catalogEntry('butter')
+    const existingItem = useKitchenStore.getState().items.find((i) => i.id === entry.id)
+    expect(existingItem).toEqual(before)
+    expect(useKitchenStore.getState().items.find((i) => i.id === 'butter')).toEqual(before)
+  })
+})
+
+describe('restockKitchenItem — explicit, confirmed amount changes', () => {
+  beforeEach(() => {
+    useKitchenStore.getState().resetDemo()
+  })
+  const get = (id: string) => useKitchenStore.getState().items.find((i) => i.id === id)!
+
+  it('countable: adds the confirmed amount to the existing count, it does not replace it', () => {
+    const before = get('eggs').count ?? 0
+    useKitchenStore.getState().restockKitchenItem('eggs', { count: 12 })
+    expect(get('eggs').count).toBe(before + 12)
+  })
+
+  it('divisible: replaces the current fraction outright with the confirmed value', () => {
+    useKitchenStore.setState((s) => ({
+      items: s.items.map((i) => (i.id === 'spinach' ? { ...i, fraction: 0.25 } : i)),
+    }))
+    useKitchenStore.getState().restockKitchenItem('spinach', { fraction: 1 })
+    expect(get('spinach').fraction).toBe(1)
+  })
+
+  it('container: replaces the current fill outright with the confirmed value', () => {
+    useKitchenStore.setState((s) => ({
+      items: s.items.map((i) => (i.id === 'milk' ? { ...i, fill: 0.25 } : i)),
+    }))
+    useKitchenStore.getState().restockKitchenItem('milk', { fill: 1 })
+    expect(get('milk').fill).toBe(1)
+  })
+
+  it('staple: replaces the current level outright with the confirmed value', () => {
+    expect(get('butter').level).toBe('low')
+    useKitchenStore.getState().restockKitchenItem('butter', { level: 'plenty' })
+    expect(get('butter').level).toBe('plenty')
+  })
+
+  it('preserves reservation metadata through an explicit level change', () => {
+    const before = get('butter')
+    expect(before.reserved).toBe(0.5)
+    expect(before.reservedFor).toBeDefined()
+
+    useKitchenStore.getState().restockKitchenItem('butter', { level: 'plenty' })
+
+    const after = get('butter')
+    expect(after.reserved).toBe(before.reserved)
+    expect(after.reservedFor).toBe(before.reservedFor)
+  })
+
+  it('restores high inventory confidence on restock, same as the other stock mutations', () => {
+    useKitchenStore.setState((s) => ({
+      items: s.items.map((i) => (i.id === 'butter' ? { ...i, updatedAt: undefined, daysSincePurchase: 400 } : i)),
+    }))
+    expect(inventoryConfidence(get('butter'))).toBe('low')
+    useKitchenStore.getState().restockKitchenItem('butter', { level: 'some' })
+    expect(inventoryConfidence(get('butter'))).toBe('high')
   })
 })
 

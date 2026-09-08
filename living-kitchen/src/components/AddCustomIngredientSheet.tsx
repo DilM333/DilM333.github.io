@@ -11,11 +11,8 @@ import {
   type StartingAmount,
 } from '../data/catalog'
 import type { Location, StapleLevel, StockType } from '../data/types'
-import { fillLabel, fractionLabel, levelLabel } from '../lib/kitchen'
 import { useKitchenStore } from '../store/useKitchenStore'
-
-const FRACTIONS = [0, 0.25, 0.5, 0.75, 1]
-const LEVELS: StapleLevel[] = ['plenty', 'some', 'low', 'out']
+import StartingAmountPicker from './StartingAmountPicker'
 
 export default function AddCustomIngredientSheet({
   initialName,
@@ -182,72 +179,16 @@ export default function AddCustomIngredientSheet({
             <label className="mb-1 block text-xs font-semibold text-ink/50">
               How much do you have now?
             </label>
-
-            {stockType === 'countable' && (
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setCount((c) => Math.max(0, c - 1))}
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-ink/5 text-ink/70"
-                  aria-label="Decrease"
-                >
-                  −
-                </button>
-                <span className="w-6 text-center text-sm font-bold tabular-nums">{count}</span>
-                <button
-                  onClick={() => setCount((c) => c + 1)}
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-ink/5 text-ink/70"
-                  aria-label="Increase"
-                >
-                  +
-                </button>
-              </div>
-            )}
-
-            {stockType === 'divisible' && (
-              <div className="flex items-center gap-1.5">
-                {FRACTIONS.map((f) => (
-                  <button
-                    key={f}
-                    onClick={() => setFraction(f)}
-                    className={`rounded-md px-2 py-1 text-xs font-bold ${
-                      fraction === f ? 'bg-leaf text-white' : 'bg-ink/5 text-ink/60'
-                    }`}
-                  >
-                    {fractionLabel(f)}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {stockType === 'container' && (
-              <div className="flex items-center gap-3">
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={fill * 100}
-                  onChange={(e) => setFill(Number(e.target.value) / 100)}
-                  className="flex-1 accent-leaf"
-                />
-                <span className="w-16 text-right text-xs text-ink/50">{fillLabel(fill)}</span>
-              </div>
-            )}
-
-            {stockType === 'staple' && (
-              <div className="flex items-center gap-1.5">
-                {LEVELS.map((lvl) => (
-                  <button
-                    key={lvl}
-                    onClick={() => setLevel(lvl)}
-                    className={`rounded-md px-2 py-1 text-[11px] font-bold uppercase ${
-                      level === lvl ? 'bg-leaf text-white' : 'bg-ink/5 text-ink/60'
-                    }`}
-                  >
-                    {levelLabel(lvl)}
-                  </button>
-                ))}
-              </div>
-            )}
+            <StartingAmountPicker
+              stockType={stockType}
+              value={{ count, fraction, fill, level }}
+              onChange={(patch) => {
+                if (patch.count !== undefined) setCount(patch.count)
+                if (patch.fraction !== undefined) setFraction(patch.fraction)
+                if (patch.fill !== undefined) setFill(patch.fill)
+                if (patch.level !== undefined) setLevel(patch.level)
+              }}
+            />
           </div>
 
           <div>

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { CatalogEntry } from '../data/catalog'
+import type { CatalogEntry, StartingAmount } from '../data/catalog'
 import { seedGroceryList, seedKitchen, seedPeople, seedRecipes } from '../data/seed'
 import type { GroceryItem, KitchenItem, Person, Recipe, StapleLevel } from '../data/types'
 import { stockPatchForLevel } from '../lib/kitchen'
@@ -121,6 +121,15 @@ interface KitchenState {
    */
   setItemStockLevel: (id: string, level: 'low' | 'out') => void
   addKitchenItem: (item: KitchenItem) => void
+  /**
+   * Applies an explicitly confirmed amount to an item already in the
+   * kitchen — countable adds to the current count (unambiguous arithmetic);
+   * divisible/container/staple replace the current value outright, since
+   * Euko models an approximate current state rather than doing arithmetic
+   * on ambiguous partial amounts. Only ever call this after the user has
+   * confirmed a value in the amount picker — never automatically.
+   */
+  restockKitchenItem: (id: string, amount: StartingAmount) => void
   removeKitchenItem: (id: string) => void
   addCustomCatalogEntry: (entry: CatalogEntry) => void
 
@@ -591,15 +600,20 @@ export const useKitchenStore = create<KitchenState>()(
           set((state) => {
             const existing = state.items.find((i) => i.id === item.id)
             if (existing) {
+              // Only `count` is unambiguous enough to merge automatically —
+              // divisible/container/staple model an approximate *current*
+              // state, not a running tally, so this must never silently
+              // overwrite them back to whatever default the caller happened
+              // to pass (that was the "milk ¼ -> Full" bug). A deliberate
+              // change to those goes through restockKitchenItem instead,
+              // only ever called after the user confirms a value in the
+              // amount picker.
               return {
                 items: state.items.map((i) =>
                   i.id === item.id
                     ? {
                         ...i,
                         count: (i.count ?? 0) + (item.count ?? 1),
-                        fraction: item.fraction ?? i.fraction,
-                        fill: item.fill ?? i.fill,
-                        level: item.level ?? i.level,
                         daysSincePurchase: 0,
                         updatedAt: observedNow(),
                       }
@@ -612,6 +626,26 @@ export const useKitchenStore = create<KitchenState>()(
             }
           })
           const updated = get().items.find((i) => i.id === item.id)
+          if (updated) persistItem(updated)
+        },
+
+        restockKitchenItem: (id, amount) => {
+          set((state) => ({
+            items: state.items.map((i) =>
+              i.id === id
+                ? {
+                    ...i,
+                    count: amount.count != null ? (i.count ?? 0) + amount.count : i.count,
+                    fraction: amount.fraction ?? i.fraction,
+                    fill: amount.fill ?? i.fill,
+                    level: amount.level ?? i.level,
+                    daysSincePurchase: 0,
+                    updatedAt: observedNow(),
+                  }
+                : i,
+            ),
+          }))
+          const updated = get().items.find((i) => i.id === id)
           if (updated) persistItem(updated)
         },
 

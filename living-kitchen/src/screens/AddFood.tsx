@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AddCustomIngredientSheet from '../components/AddCustomIngredientSheet'
+import AddToKitchenSheet from '../components/AddToKitchenSheet'
 import PageHeader from '../components/PageHeader'
 import SyncErrorBanner from '../components/SyncErrorBanner'
 import { catalog, catalogCategories, searchCatalog, toKitchenItem, type CatalogEntry } from '../data/catalog'
@@ -28,6 +29,7 @@ function AddedToast({ name }: { name: string }) {
 
 export default function AddFood() {
   const navigate = useNavigate()
+  const items = useKitchenStore((s) => s.items)
   const addKitchenItem = useKitchenStore((s) => s.addKitchenItem)
   const customCatalog = useKitchenStore((s) => s.customCatalog)
   const customIngredientsSyncError = useKitchenStore((s) => s.customIngredientsSyncError)
@@ -37,6 +39,7 @@ export default function AddFood() {
   const [toast, setToast] = useState<string | null>(null)
   const [scanned, setScanned] = useState(false)
   const [customSheet, setCustomSheet] = useState(false)
+  const [pendingEntry, setPendingEntry] = useState<CatalogEntry | null>(null)
 
   // Alias/plural/punctuation-tolerant search (see data/catalog.ts) so a
   // synonym like "scallion" or "garbanzo beans" resolves to the one
@@ -53,11 +56,14 @@ export default function AddFood() {
   // an alias or a loose partial match — already covers this ingredient.
   const showCreate = trimmedQuery.length > 0 && results.length === 0
 
-  const handleAdd = (entry: CatalogEntry) => {
-    addKitchenItem(toKitchenItem(entry))
-    setToast(entry.name)
-    window.setTimeout(() => setToast(null), 1400)
-  }
+  // Selecting a result only opens the amount picker — nothing in the kitchen
+  // changes until the user explicitly confirms a value there (see
+  // AddToKitchenSheet / restockKitchenItem for why: an already-stocked
+  // divisible/container/staple item must never be silently reset to a
+  // default just because it was tapped again).
+  const handleAdd = (entry: CatalogEntry) => setPendingEntry(entry)
+
+  const existingItemFor = (entry: CatalogEntry) => items.find((i) => i.id === entry.id)
 
   return (
     <div className="flex flex-col gap-5 pb-10">
@@ -231,6 +237,19 @@ export default function AddFood() {
           onAdded={(name) => {
             setToast(name)
             setQuery('')
+            window.setTimeout(() => setToast(null), 1400)
+          }}
+        />
+      )}
+
+      {pendingEntry && (
+        <AddToKitchenSheet
+          entry={pendingEntry}
+          existingItem={existingItemFor(pendingEntry)}
+          onClose={() => setPendingEntry(null)}
+          onConfirm={() => {
+            setToast(pendingEntry.name)
+            setPendingEntry(null)
             window.setTimeout(() => setToast(null), 1400)
           }}
         />
