@@ -127,4 +127,15 @@ export interface GroceryItem {
   estPrice?: number
   /** Supabase `grocery_list_items.id` once this item has been synced (see kitchen_items' `remoteId`). */
   remoteId?: string
+  /**
+   * Canonical catalog/kitchen ingredient id, when this grocery item was added
+   * from a recipe ingredient, a kitchen item, or a catalog search result —
+   * lets it be recognized as "the same ingredient" regardless of display-name
+   * wording (e.g. a recipe's "Tomatoes" vs the catalog's canonical "Tomato").
+   * Undefined for arbitrary free-text items (e.g. "paper towels") that have
+   * no catalog entry — the grocery list is not restricted to ingredients.
+   * Local-only for now: `grocery_list_items` has no matching column, so this
+   * does not round-trip through Supabase (see lib/grocerySync.ts).
+   */
+  itemId?: string
 }

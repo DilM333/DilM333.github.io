@@ -1,21 +1,40 @@
 import { useMemo, useState } from 'react'
+import { searchCatalog, type CatalogEntry } from '../data/catalog'
 import EmptyState from '../components/EmptyState'
 import PageHeader from '../components/PageHeader'
 import SectionHeader from '../components/SectionHeader'
 import SkeletonRows from '../components/SkeletonRows'
 import SyncErrorBanner from '../components/SyncErrorBanner'
-import { groceryItemForName } from '../lib/grocery'
+import { groceryItemForCatalogEntry, groceryItemForName, kitchenStockForEntry } from '../lib/grocery'
 import { useKitchenStore } from '../store/useKitchenStore'
+
+const MAX_SUGGESTIONS = 5
 
 export default function GroceryList() {
   const groceryList = useKitchenStore((s) => s.groceryList)
   const groceryLoading = useKitchenStore((s) => s.groceryLoading)
   const groceryListSyncError = useKitchenStore((s) => s.groceryListSyncError)
+  const items = useKitchenStore((s) => s.items)
   const customCatalog = useKitchenStore((s) => s.customCatalog)
   const toggleGroceryChecked = useKitchenStore((s) => s.toggleGroceryChecked)
   const removeGroceryItem = useKitchenStore((s) => s.removeGroceryItem)
   const addToGroceryList = useKitchenStore((s) => s.addToGroceryList)
   const [draft, setDraft] = useState('')
+
+  const trimmedDraft = draft.trim()
+  // Lightweight — a handful of catalog matches as you type, not a full
+  // search screen. The plain text field beneath is still how arbitrary,
+  // non-ingredient items ("paper towels") get added; this is purely an
+  // optional shortcut for ingredients the catalog already knows.
+  const suggestions = useMemo(
+    () => (trimmedDraft ? searchCatalog(trimmedDraft, customCatalog).slice(0, MAX_SUGGESTIONS) : []),
+    [trimmedDraft, customCatalog],
+  )
+
+  const addCatalogEntry = (entry: CatalogEntry) => {
+    addToGroceryList(groceryItemForCatalogEntry(entry, 'Added manually'))
+    setDraft('')
+  }
 
   const grouped = useMemo(() => {
     const map = new Map<string, typeof groceryList>()
@@ -68,6 +87,33 @@ export default function GroceryList() {
           +
         </button>
       </div>
+
+      {suggestions.length > 0 && (
+        <div className="-mt-3 flex flex-col gap-1.5 px-5">
+          {suggestions.map(({ entry, matchedAlias }) => {
+            const stock = kitchenStockForEntry(entry, items)
+            return (
+              <button
+                key={entry.id}
+                onClick={() => addCatalogEntry(entry)}
+                className="flex items-center gap-3 rounded-xl border border-ink/10 bg-white px-3 py-2 text-left shadow-soft hover:border-clay/40"
+              >
+                <span className="text-lg">{entry.emoji}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold">{entry.name}</span>
+                  {matchedAlias && (
+                    <span className="block truncate text-xs text-ink/40">also called {matchedAlias}</span>
+                  )}
+                  {stock && (
+                    <span className="block truncate text-xs text-ink/45">In kitchen · {stock.display}</span>
+                  )}
+                </span>
+                <span className="shrink-0 text-sm font-bold text-clay">+</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {groceryLoading ? (
         <div className="px-5">

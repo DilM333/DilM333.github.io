@@ -670,7 +670,17 @@ export const useKitchenStore = create<KitchenState>()(
         },
 
         addToGroceryList: (item) => {
-          if (get().groceryList.some((g) => g.name === item.name)) return
+          // Exact-name match is the original, still-active rule (and the only
+          // one available for arbitrary free-text items with no itemId, e.g.
+          // "paper towels"). When the incoming item carries a canonical
+          // itemId, also treat a match on that id as a duplicate — this is
+          // what stops the same ingredient added once from a recipe ("Ground
+          // beef") and once from catalog autocomplete ("Beef") from creating
+          // two rows just because their display names differ.
+          const isDuplicate = get().groceryList.some(
+            (g) => g.name === item.name || (item.itemId != null && g.itemId === item.itemId),
+          )
+          if (isDuplicate) return
           const newItem: GroceryItem = { ...item, id: `g-${Date.now()}-${item.name}`, checked: false }
           set((state) => ({ groceryList: [...state.groceryList, newItem] }))
           persistGroceryItem(newItem)

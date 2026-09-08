@@ -40,26 +40,31 @@ const DELETE_HINT = `create policy "grocery_items_delete_own_household" on publi
   using (household_id in (select household_id from public.household_members where user_id = auth.uid()));`
 
 /**
- * `grocery_list_items` has no emoji/category columns, so both are recovered
- * the same way kitchen_items' identity is: match the name against the
- * catalog/custom catalog first, falling back to the free-typed guessers
- * already used when adding an item by hand (see data/catalog.ts).
+ * `grocery_list_items` has no emoji/category/canonical-id columns, so all
+ * three are recovered the same way kitchen_items' identity is: match the
+ * name against the catalog/custom catalog first, falling back to the
+ * free-typed guessers already used when adding an item by hand (see
+ * data/catalog.ts). `itemId` is intentionally best-effort and local-only —
+ * there is no column to persist it in yet (see GroceryItem.itemId), so it's
+ * reconstructed fresh on every fetch from whatever name is stored. An
+ * arbitrary item with no catalog match (e.g. "paper towels") simply gets no
+ * itemId, same as it would have client-side.
  */
 function deriveCategoryAndEmoji(
   name: string,
   customCatalog: CatalogEntry[],
-): { category: string; emoji: string } {
+): { category: string; emoji: string; itemId?: string } {
   const n = name.trim().toLowerCase()
   const fromCustom = customCatalog.find((c) => c.name.toLowerCase() === n)
-  if (fromCustom) return { category: fromCustom.category, emoji: fromCustom.emoji }
+  if (fromCustom) return { category: fromCustom.category, emoji: fromCustom.emoji, itemId: fromCustom.id }
   const fromCatalog = catalog.find((c) => c.name.toLowerCase() === n)
-  if (fromCatalog) return { category: fromCatalog.category, emoji: fromCatalog.emoji }
+  if (fromCatalog) return { category: fromCatalog.category, emoji: fromCatalog.emoji, itemId: fromCatalog.id }
   const category = guessCategory(name)
   return { category, emoji: guessEmoji(name, category) }
 }
 
 export function rowToGroceryItem(row: GroceryItemRow, customCatalog: CatalogEntry[]): GroceryItem {
-  const { category, emoji } = deriveCategoryAndEmoji(row.name, customCatalog)
+  const { category, emoji, itemId } = deriveCategoryAndEmoji(row.name, customCatalog)
   return {
     id: row.id,
     remoteId: row.id,
@@ -68,6 +73,7 @@ export function rowToGroceryItem(row: GroceryItemRow, customCatalog: CatalogEntr
     category,
     reason: row.reason ?? '',
     checked: row.checked,
+    itemId,
   }
 }
 

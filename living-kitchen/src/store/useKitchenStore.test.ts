@@ -388,3 +388,68 @@ describe('worth-checking flow — queue + readiness re-evaluation', () => {
     expect(computeFeasibility(r, live()).status).toBe('one-away')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Grocery awareness foundation: GroceryItem.itemId lets addToGroceryList
+// recognize "the same canonical ingredient" across different display names
+// (e.g. a recipe's "Ground beef" vs a catalog result's "Beef"), while
+// preserving the original exact-name dedup for arbitrary, non-catalog items
+// and for pre-existing grocery rows that predate itemId.
+// ---------------------------------------------------------------------------
+
+describe('addToGroceryList — canonical dedup', () => {
+  beforeEach(() => {
+    useKitchenStore.getState().resetDemo()
+    useKitchenStore.setState({ groceryList: [] })
+  })
+  const list = () => useKitchenStore.getState().groceryList
+
+  it('does not duplicate the same canonical ingredient added under two different display names', () => {
+    useKitchenStore.getState().addToGroceryList({
+      name: 'Ground beef',
+      emoji: '🥩',
+      category: 'Meat',
+      reason: 'For Bolognese',
+      itemId: 'ground-beef',
+    })
+    useKitchenStore.getState().addToGroceryList({
+      name: 'Beef',
+      emoji: '🥩',
+      category: 'Meat',
+      reason: 'Added manually',
+      itemId: 'ground-beef',
+    })
+    expect(list()).toHaveLength(1)
+    expect(list()[0].name).toBe('Ground beef')
+  })
+
+  it('still dedupes arbitrary, non-catalog items by exact name (unchanged pre-existing behavior)', () => {
+    const paperTowels = { name: 'Paper towels', emoji: '🧻', category: 'Household', reason: 'Added manually' }
+    useKitchenStore.getState().addToGroceryList(paperTowels)
+    useKitchenStore.getState().addToGroceryList(paperTowels)
+    expect(list()).toHaveLength(1)
+  })
+
+  it('does not treat two different canonical ingredients as duplicates', () => {
+    useKitchenStore.getState().addToGroceryList({ name: 'Milk', emoji: '🥛', category: 'Dairy', reason: 'r', itemId: 'milk' })
+    useKitchenStore.getState().addToGroceryList({ name: 'Eggs', emoji: '🥚', category: 'Dairy', reason: 'r', itemId: 'eggs' })
+    expect(list()).toHaveLength(2)
+  })
+
+  it('backward compatible: an itemId-less legacy row and a new itemId-carrying item still dedupe by shared name', () => {
+    useKitchenStore.getState().addToGroceryList({
+      name: 'Tomatoes',
+      emoji: '🍅',
+      category: 'Produce',
+      reason: 'legacy row, added before itemId existed',
+    })
+    useKitchenStore.getState().addToGroceryList({
+      name: 'Tomatoes',
+      emoji: '🍅',
+      category: 'Produce',
+      reason: 'from catalog autocomplete',
+      itemId: 'tomato',
+    })
+    expect(list()).toHaveLength(1)
+  })
+})
