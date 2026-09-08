@@ -466,9 +466,13 @@ export const catalog: CatalogEntry[] = [
   { id: 'apple', name: 'Apple', emoji: '🍎', category: 'Produce', location: 'fridge', stockType: 'countable', aliases: ['apples'] },
   { id: 'banana', name: 'Banana', emoji: '🍌', category: 'Produce', location: 'pantry', stockType: 'countable', aliases: ['bananas'] },
   { id: 'orange', name: 'Orange', emoji: '🍊', category: 'Produce', location: 'fridge', stockType: 'countable', aliases: ['oranges'] },
-  { id: 'grapes', name: 'Grapes', emoji: '🍇', category: 'Produce', location: 'fridge', stockType: 'divisible' },
-  { id: 'strawberries', name: 'Strawberries', emoji: '🍓', category: 'Produce', location: 'fridge', stockType: 'divisible', aliases: ['strawberry'] },
-  { id: 'blueberries', name: 'Blueberries', emoji: '🫐', category: 'Produce', location: 'fridge', stockType: 'divisible', aliases: ['blueberry'] },
+  // Loose/bulk produce sold in inconsistent containers — "Plenty/Some/Low/Out"
+  // reads more naturally than a fraction ("¼ of grapes"). staple is the
+  // closest existing stockType; there's no dedicated "few" state (see
+  // StapleLevel) so "Low" is the deliberate stand-in for "a few left".
+  { id: 'grapes', name: 'Grapes', emoji: '🍇', category: 'Produce', location: 'fridge', stockType: 'staple' },
+  { id: 'strawberries', name: 'Strawberries', emoji: '🍓', category: 'Produce', location: 'fridge', stockType: 'staple', aliases: ['strawberry'] },
+  { id: 'blueberries', name: 'Blueberries', emoji: '🫐', category: 'Produce', location: 'fridge', stockType: 'staple', aliases: ['blueberry'] },
 
   // --- Meat / protein --------------------------------------------------------
   // Breast/thigh are a widely-accepted "in a pinch" swap in most home
