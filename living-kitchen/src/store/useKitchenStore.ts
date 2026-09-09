@@ -39,6 +39,17 @@ interface CookingSession {
   adaptations: Record<string, AdaptChoice>
   stepIndex: number
   actualUsage: Record<string, number>
+  /**
+   * The serving count this specific cook is targeting — set once, when
+   * cooking starts (see startCooking), from whatever RecipeDetail's local
+   * serving-preview state held at that moment. Never the canonical
+   * Recipe.servings itself, and never mutates it; `undefined` is treated the
+   * same as `recipe.servings` (no scaling) everywhere this is read. This is
+   * the one authoritative source for "what ratio is this cook using" once a
+   * session exists — AdaptRecipe/CookingMode/ChangeSomethingSheet/Finished
+   * all read it, never recompute their own.
+   */
+  targetServings?: number
 }
 
 interface KitchenState {
@@ -155,11 +166,19 @@ interface KitchenState {
   toggleGroceryChecked: (id: string) => void
   removeGroceryItem: (id: string) => void
 
-  startCooking: (recipeId: string) => void
+  /**
+   * `targetServings` seeds the new session's serving target — normally
+   * whatever RecipeDetail's local preview stepper held when the user pressed
+   * Start Cooking/Adapt. Omit to start at the recipe's own base `servings`
+   * (no scaling), matching every pre-servings caller unchanged.
+   */
+  startCooking: (recipeId: string, targetServings?: number) => void
   setAdaptation: (ingredientId: string, choice: AdaptChoice) => void
   nextStep: () => void
   prevStep: () => void
   setActualUsage: (itemId: string, amount: number) => void
+  /** Changes the *current* cooking session's serving target — never the canonical Recipe.servings. */
+  setTargetServings: (servings: number) => void
   finishCooking: (deductions: KitchenDeduction[]) => void
   cancelCooking: () => void
 }
@@ -771,8 +790,14 @@ export const useKitchenStore = create<KitchenState>()(
           }
         },
 
-        startCooking: (recipeId) =>
-          set({ cookingSession: { recipeId, adaptations: {}, stepIndex: 0, actualUsage: {} } }),
+        startCooking: (recipeId, targetServings) =>
+          set({ cookingSession: { recipeId, adaptations: {}, stepIndex: 0, actualUsage: {}, targetServings } }),
+
+        setTargetServings: (servings) =>
+          set((state) => {
+            if (!state.cookingSession) return state
+            return { cookingSession: { ...state.cookingSession, targetServings: servings } }
+          }),
 
         setAdaptation: (ingredientId, choice) =>
           set((state) => {

@@ -120,4 +120,42 @@ describe('no malformed or placeholder recipes', () => {
     }
     expect(bad).toEqual([])
   })
+
+  it('has a positive base servings count on every recipe', () => {
+    const bad = recipes.filter((r) => !(r.servings > 0)).map((r) => r.id)
+    expect(bad).toEqual([])
+  })
+
+  it('never gives a scalable amount that is zero or negative', () => {
+    const bad: string[] = []
+    for (const recipe of recipes) {
+      for (const ing of recipe.ingredients) {
+        if (ing.scalable?.amount != null && !(ing.scalable.amount > 0)) {
+          bad.push(`${recipe.id} -> ${ing.id}`)
+        }
+      }
+    }
+    expect(bad).toEqual([])
+  })
+})
+
+describe('scalable amounts never duplicate a compatible requiredAmount', () => {
+  it('omits scalable.amount when scalable.unit is "count" and a compatible requiredAmount already exists', () => {
+    // The whole point of reusing requiredAmount is to never author the same
+    // number twice, where it could drift. This only applies when
+    // `scalable.unit` is also 'count' — a cup/tbsp/etc. display amount is a
+    // genuinely different number/unit than a count or fraction requirement
+    // (e.g. broth's "2 cups" display vs. its 0.5 fill requirement), and is
+    // expected to carry its own explicit `amount`.
+    const bad: string[] = []
+    for (const recipe of recipes) {
+      for (const ing of recipe.ingredients) {
+        const reusable = ing.requiredAmount != null && (ing.requiredUnit === 'count' || ing.requiredUnit === 'fraction')
+        if (reusable && ing.scalable?.unit === 'count' && ing.scalable.amount != null) {
+          bad.push(`${recipe.id} -> ${ing.id}`)
+        }
+      }
+    }
+    expect(bad).toEqual([])
+  })
 })

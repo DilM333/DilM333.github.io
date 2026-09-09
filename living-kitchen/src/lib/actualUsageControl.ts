@@ -75,23 +75,29 @@ function parseLeadingNumber(text: string): number {
  * "2 cups" is never turned into a fill fraction, "½" is never guessed at for
  * a container. Divisible/container never consult `ingredient.quantity` at
  * all, by construction (that branch simply never calls the parser).
+ *
+ * `ratio` (default `1`) is `targetServings / recipe.servings` for the cook in
+ * progress, passed straight through to `structuredUsedAmount` — if the
+ * user's cooking for 4 instead of 2, the suggested starting point here
+ * doubles too, exactly like the deduction it's initializing a guess for.
  */
 export function usageControlFor(
   ingredient: RecipeIngredient,
   matched: KitchenItem,
+  ratio: number = 1,
 ): UsageControl | null {
   switch (matched.stockType) {
     case 'countable': {
-      const structured = structuredUsedAmount(ingredient, matched)
+      const structured = structuredUsedAmount(ingredient, matched, ratio)
       const initial = structured ?? parseLeadingNumber(ingredient.quantity)
       return { kind: 'countable', initial, step: STEP.countable }
     }
     case 'divisible': {
-      const initial = structuredUsedAmount(ingredient, matched) ?? FALLBACK_INITIAL.divisible
+      const initial = structuredUsedAmount(ingredient, matched, ratio) ?? FALLBACK_INITIAL.divisible
       return { kind: 'divisible', initial, step: STEP.divisible }
     }
     case 'container': {
-      const initial = structuredUsedAmount(ingredient, matched) ?? FALLBACK_INITIAL.container
+      const initial = structuredUsedAmount(ingredient, matched, ratio) ?? FALLBACK_INITIAL.container
       return { kind: 'container', initial, step: STEP.container }
     }
     case 'staple':

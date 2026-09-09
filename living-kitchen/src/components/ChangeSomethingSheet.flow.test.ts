@@ -25,10 +25,15 @@ describe('ChangeSomethingSheet full flow: usageControlFor -> store -> buildDeduc
   })
 
   it('divisible: a real tap-driven actualUsage value reaches the final deduction correctly', () => {
-    const recipe = seedRecipes.find((r) => r.id === 'mushroom-spinach-orzo')!
-    const ingredient = recipe.ingredients.find((i) => i.itemId === 'red-onion')!
+    // spinach has no requiredAmount (cup-yield too variable to back into a
+    // fraction honestly) — deliberately used here so this test still
+    // exercises the "no structured requirement -> fixed fallback, then an
+    // explicit override" path, unaffected by the servings migration's
+    // requiredAmount backfill on other divisible ingredients (e.g. onion).
+    const recipe = seedRecipes.find((r) => r.id === 'tuscan-chicken')!
+    const ingredient = recipe.ingredients.find((i) => i.itemId === 'spinach')!
     const items: KitchenItem[] = [
-      { id: 'red-onion', name: 'Red onion', emoji: '🧅', location: 'fridge', stockType: 'divisible', category: 'Produce', fraction: 1 },
+      { id: 'spinach', name: 'Spinach', emoji: '🥬', location: 'fridge', stockType: 'divisible', category: 'Produce', fraction: 1 },
     ]
 
     const matched = matchIngredient(ingredient, items).matchedItem!
@@ -37,20 +42,23 @@ describe('ChangeSomethingSheet full flow: usageControlFor -> store -> buildDeduc
 
     // Simulate one real "+" tap from the sheet's own button handler.
     useKitchenStore.getState().startCooking(recipe.id)
-    useKitchenStore.getState().setActualUsage('red-onion', control.initial + control.step)
+    useKitchenStore.getState().setActualUsage('spinach', control.initial + control.step)
 
     const actualUsage = useKitchenStore.getState().cookingSession!.actualUsage
-    expect(actualUsage['red-onion']).toBe(0.5)
+    expect(actualUsage.spinach).toBe(0.5)
 
     const map = buildDeductionMap(recipe, items, actualUsage)
-    expect(map['red-onion'].newFraction).toBe(0.5) // 1 - 0.5, not the old fixed 0.25 default
+    expect(map.spinach.newFraction).toBe(0.5) // 1 - 0.5, not the old fixed 0.25 default
   })
 
   it('container: a real tap-driven actualUsage value reaches the final deduction correctly', () => {
-    const recipe = seedRecipes.find((r) => r.id === 'mushroom-spinach-orzo')!
-    const ingredient = recipe.ingredients.find((i) => i.itemId === 'broth')!
+    // mayonnaise has no requiredAmount (jar sizes vary too much for an
+    // honest fill fraction) — kept unstructured by the servings migration,
+    // so this still exercises the fixed-fallback path.
+    const recipe = seedRecipes.find((r) => r.id === 'egg-salad-sandwich')!
+    const ingredient = recipe.ingredients.find((i) => i.itemId === 'mayonnaise')!
     const items: KitchenItem[] = [
-      { id: 'broth', name: 'Vegetable broth', emoji: '🥫', location: 'pantry', stockType: 'container', category: 'Pantry', fill: 1 },
+      { id: 'mayonnaise', name: 'Mayonnaise', emoji: '🥪', location: 'pantry', stockType: 'container', category: 'Pantry', fill: 1 },
     ]
 
     const matched = matchIngredient(ingredient, items).matchedItem!
@@ -59,13 +67,13 @@ describe('ChangeSomethingSheet full flow: usageControlFor -> store -> buildDeduc
 
     // Two real "+" taps.
     useKitchenStore.getState().startCooking(recipe.id)
-    useKitchenStore.getState().setActualUsage('broth', control.initial + control.step * 2)
+    useKitchenStore.getState().setActualUsage('mayonnaise', control.initial + control.step * 2)
 
     const actualUsage = useKitchenStore.getState().cookingSession!.actualUsage
-    expect(actualUsage.broth).toBeCloseTo(0.35)
+    expect(actualUsage.mayonnaise).toBeCloseTo(0.35)
 
     const map = buildDeductionMap(recipe, items, actualUsage)
-    expect(map.broth.newFill).toBeCloseTo(0.65) // 1 - 0.35, not the old fixed 0.15 default
+    expect(map.mayonnaise.newFill).toBeCloseTo(0.65) // 1 - 0.35, not the old fixed 0.15 default
   })
 
   it('staple: never enters the trackable/editable set, and the flat one-tier deduction is unaffected by the absence of any actualUsage', () => {

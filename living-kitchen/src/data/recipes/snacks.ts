@@ -11,13 +11,46 @@ export const snackRecipes: Recipe[] = [
     effort: 'Bare minimum',
     tags: ['quick', 'vegetarian', 'cheap'],
     mealTypes: ['snack'],
+    servings: 1,
     description: 'Toast, peanut butter, banana — done in the time it takes the toaster to pop.',
     ingredients: [
-      { id: 'i1', name: 'Bread', emoji: '🍞', quantity: '2 slices', itemId: 'bread' },
-      { id: 'i2', name: 'Peanut butter', emoji: '🥜', quantity: '2 tbsp', itemId: 'peanut-butter' },
-      // Half a banana isn't a whole-unit count — left unstructured.
-      { id: 'i3', name: 'Banana', emoji: '🍌', quantity: '1, sliced', itemId: 'banana', requiredAmount: 1, requiredUnit: 'count' },
-      { id: 'i4', name: 'Honey', emoji: '🍯', quantity: '1 tsp, drizzled', itemId: 'honey', optional: true },
+      {
+        id: 'i1',
+        name: 'Bread',
+        emoji: '🍞',
+        quantity: '2 slices',
+        itemId: 'bread',
+        scalable: { amount: 2, unit: 'count', noun: { singular: 'slice', plural: 'slices' } },
+      },
+      {
+        id: 'i2',
+        name: 'Peanut butter',
+        emoji: '🥜',
+        quantity: '2 tbsp',
+        itemId: 'peanut-butter',
+        scalable: { amount: 2, unit: 'tbsp' },
+      },
+      // Half a banana isn't a whole-unit count — requiredAmount stays
+      // unset; the fractional cooking amount is still honest to display.
+      {
+        id: 'i3',
+        name: 'Banana',
+        emoji: '🍌',
+        quantity: '1, sliced',
+        itemId: 'banana',
+        requiredAmount: 1,
+        requiredUnit: 'count',
+        scalable: { unit: 'count', prep: 'sliced' },
+      },
+      {
+        id: 'i4',
+        name: 'Honey',
+        emoji: '🍯',
+        quantity: '1 tsp, drizzled',
+        itemId: 'honey',
+        optional: true,
+        scalable: { amount: 1, unit: 'tsp', prep: 'drizzled' },
+      },
     ],
     steps: [
       { instruction: 'Toast the bread.' },
@@ -35,14 +68,44 @@ export const snackRecipes: Recipe[] = [
     effort: 'Bare minimum',
     tags: ['vegetarian', 'cheap'],
     mealTypes: ['snack', 'dessert'],
+    servings: 4,
     description: 'No oven needed — just stir, roll, and chill.',
     ingredients: [
-      { id: 'i1', name: 'Oats', emoji: '🌾', quantity: '1 cup', itemId: 'oats' },
-      { id: 'i2', name: 'Peanut butter', emoji: '🥜', quantity: '½ cup', itemId: 'peanut-butter' },
+      {
+        id: 'i1',
+        name: 'Oats',
+        emoji: '🌾',
+        quantity: '1 cup',
+        itemId: 'oats',
+        scalable: { amount: 1, unit: 'cup' },
+      },
+      {
+        id: 'i2',
+        name: 'Peanut butter',
+        emoji: '🥜',
+        quantity: '½ cup',
+        itemId: 'peanut-butter',
+        scalable: { amount: 0.5, unit: 'cup' },
+      },
       // Honey jar sizes vary too much to honestly express "¼ cup" as a
-      // fill fraction.
-      { id: 'i3', name: 'Honey', emoji: '🍯', quantity: '¼ cup', itemId: 'honey' },
-      { id: 'i4', name: 'Chocolate chips', emoji: '🍫', quantity: '¼ cup', itemId: 'chocolate-chips', optional: true },
+      // fill fraction — stays unstructured for inventory.
+      {
+        id: 'i3',
+        name: 'Honey',
+        emoji: '🍯',
+        quantity: '¼ cup',
+        itemId: 'honey',
+        scalable: { amount: 0.25, unit: 'cup' },
+      },
+      {
+        id: 'i4',
+        name: 'Chocolate chips',
+        emoji: '🍫',
+        quantity: '¼ cup',
+        itemId: 'chocolate-chips',
+        optional: true,
+        scalable: { amount: 0.25, unit: 'cup' },
+      },
     ],
     steps: [
       { instruction: 'Stir oats, peanut butter, and honey together in a bowl.' },

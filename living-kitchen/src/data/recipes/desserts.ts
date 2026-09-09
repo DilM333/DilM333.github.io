@@ -11,6 +11,7 @@ export const dessertRecipes: Recipe[] = [
     effort: 'I want to cook',
     tags: ['comforting'],
     mealTypes: ['dessert'],
+    servings: 6,
     description: 'Classic soft sugar cookies.',
     ingredients: [
       {
@@ -19,13 +20,28 @@ export const dessertRecipes: Recipe[] = [
         emoji: '🧈',
         quantity: '1 cup',
         itemId: 'butter',
-        // Same coarse staple-level scale as the pasta requirement above.
+        // Same coarse staple-level scale as the pasta requirement above — never scales.
         requiredAmount: 2,
         requiredUnit: 'level',
+        scalable: { amount: 1, unit: 'cup' },
       },
-      { id: 'i2', name: 'Eggs', emoji: '🥚', quantity: '2', itemId: 'eggs' },
-      { id: 'i3', name: 'Flour', emoji: '🌾', quantity: '3 cups', itemId: 'flour' },
-      { id: 'i4', name: 'Sugar', emoji: '🍬', quantity: '1 cup', itemId: 'sugar' },
+      { id: 'i2', name: 'Eggs', emoji: '🥚', quantity: '2', itemId: 'eggs', requiredAmount: 2, requiredUnit: 'count' },
+      {
+        id: 'i3',
+        name: 'Flour',
+        emoji: '🌾',
+        quantity: '3 cups',
+        itemId: 'flour',
+        scalable: { amount: 3, unit: 'cup' },
+      },
+      {
+        id: 'i4',
+        name: 'Sugar',
+        emoji: '🍬',
+        quantity: '1 cup',
+        itemId: 'sugar',
+        scalable: { amount: 1, unit: 'cup' },
+      },
     ],
     steps: [
       { instruction: 'Cream butter and sugar.' },
@@ -43,6 +59,7 @@ export const dessertRecipes: Recipe[] = [
     effort: 'I want to cook',
     tags: ['comforting', 'use-leftovers'],
     mealTypes: ['dessert'],
+    servings: 8,
     description: 'A moist, classic loaf that puts overripe bananas to good use.',
     ingredients: [
       {
@@ -53,10 +70,37 @@ export const dessertRecipes: Recipe[] = [
         itemId: 'banana',
         requiredAmount: 3,
         requiredUnit: 'count',
+        scalable: { unit: 'count', prep: 'mashed' },
       },
-      { id: 'i2', name: 'Flour', emoji: '🌾', quantity: '2 cups', itemId: 'flour' },
-      { id: 'i3', name: 'Sugar', emoji: '🍬', quantity: '¾ cup', itemId: 'sugar' },
-      { id: 'i4', name: 'Butter', emoji: '🧈', quantity: '⅓ cup, melted', itemId: 'butter' },
+      {
+        id: 'i2',
+        name: 'Flour',
+        emoji: '🌾',
+        quantity: '2 cups',
+        itemId: 'flour',
+        scalable: { amount: 2, unit: 'cup' },
+      },
+      {
+        id: 'i3',
+        name: 'Sugar',
+        emoji: '🍬',
+        quantity: '¾ cup',
+        itemId: 'sugar',
+        scalable: { amount: 0.75, unit: 'cup' },
+      },
+      {
+        id: 'i4',
+        name: 'Butter',
+        emoji: '🧈',
+        quantity: '⅓ cup, melted',
+        itemId: 'butter',
+        // ⅓ isn't on the app's quarter-step display grid — it rounds to the
+        // nearest quarter (¼) for display, same graceful, disclosed
+        // approximation the rest of the app already applies to divisible
+        // amounts. Never affects deduction/readiness (butter here is
+        // tracked as a coarse staple level, not a continuous quantity).
+        scalable: { amount: 1 / 3, unit: 'cup', prep: 'melted' },
+      },
       { id: 'i5', name: 'Eggs', emoji: '🥚', quantity: '2', itemId: 'eggs', requiredAmount: 2, requiredUnit: 'count' },
     ],
     steps: [
@@ -77,6 +121,7 @@ export const dessertRecipes: Recipe[] = [
     effort: 'I want to cook',
     tags: ['comforting'],
     mealTypes: ['dessert'],
+    servings: 6,
     description: "Classic chewy chocolate chip cookies — sugar-cookies' sibling.",
     ingredients: [
       {
@@ -85,14 +130,36 @@ export const dessertRecipes: Recipe[] = [
         emoji: '🧈',
         quantity: '1 cup',
         itemId: 'butter',
-        // Same coarse staple-level scale as sugar-cookies' butter above.
+        // Same coarse staple-level scale as sugar-cookies' butter above — never scales.
         requiredAmount: 2,
         requiredUnit: 'level',
+        scalable: { amount: 1, unit: 'cup' },
       },
-      { id: 'i2', name: 'Sugar', emoji: '🍬', quantity: '¾ cup', itemId: 'sugar' },
+      {
+        id: 'i2',
+        name: 'Sugar',
+        emoji: '🍬',
+        quantity: '¾ cup',
+        itemId: 'sugar',
+        scalable: { amount: 0.75, unit: 'cup' },
+      },
       { id: 'i3', name: 'Eggs', emoji: '🥚', quantity: '2', itemId: 'eggs', requiredAmount: 2, requiredUnit: 'count' },
-      { id: 'i4', name: 'Flour', emoji: '🌾', quantity: '2¼ cups', itemId: 'flour' },
-      { id: 'i5', name: 'Chocolate chips', emoji: '🍫', quantity: '2 cups', itemId: 'chocolate-chips' },
+      {
+        id: 'i4',
+        name: 'Flour',
+        emoji: '🌾',
+        quantity: '2¼ cups',
+        itemId: 'flour',
+        scalable: { amount: 2.25, unit: 'cup' },
+      },
+      {
+        id: 'i5',
+        name: 'Chocolate chips',
+        emoji: '🍫',
+        quantity: '2 cups',
+        itemId: 'chocolate-chips',
+        scalable: { amount: 2, unit: 'cup' },
+      },
     ],
     steps: [
       { instruction: 'Cream butter and sugar together.' },

@@ -2,6 +2,7 @@ import type { Recipe, RecipeIngredient } from '../data/types'
 import { fillLabel, fractionLabel } from '../lib/kitchen'
 import { matchIngredient } from '../lib/recipeMatch'
 import { usageControlFor, type UsageControl } from '../lib/actualUsageControl'
+import { servingsRatio } from '../lib/scaleRecipe'
 import { useKitchenStore } from '../store/useKitchenStore'
 
 interface TrackableIngredient {
@@ -32,6 +33,12 @@ export default function ChangeSomethingSheet({
   const cookingSession = useKitchenStore((s) => s.cookingSession)
   const setActualUsage = useKitchenStore((s) => s.setActualUsage)
 
+  // The same ratio the rest of this cook is using (see RecipeDetail/
+  // AdaptRecipe/Finished) — so a suggested starting point here for a
+  // structured ingredient already reflects "cooking for 4," not silently
+  // still assuming the recipe's base serving count.
+  const ratio = servingsRatio(recipe, cookingSession?.targetServings ?? recipe.servings)
+
   // Only ingredients that actually resolve to a real kitchen item (exact
   // match or approved substitute) AND have a numeric usage control at all —
   // usageControlFor returns null for staple items (no continuous quantity to
@@ -45,7 +52,7 @@ export default function ChangeSomethingSheet({
       if (!ing.itemId) return null
       const matched = matchIngredient(ing, items).matchedItem
       if (!matched) return null
-      const control = usageControlFor(ing, matched)
+      const control = usageControlFor(ing, matched, ratio)
       if (!control) return null
       return { ing, control }
     })

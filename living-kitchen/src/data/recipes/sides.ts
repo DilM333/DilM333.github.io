@@ -11,9 +11,19 @@ export const sideRecipes: Recipe[] = [
     effort: 'Bare minimum',
     tags: ['light', 'vegetarian', 'cheap', 'dinner'],
     mealTypes: ['side', 'dinner'],
+    servings: 4,
     description: 'A simple sheet-pan side of caramelized roasted vegetables.',
     ingredients: [
-      { id: 'i1', name: 'Carrots', emoji: '🥕', quantity: '2, chopped', itemId: 'carrots' },
+      {
+        id: 'i1',
+        name: 'Carrots',
+        emoji: '🥕',
+        quantity: '2, chopped',
+        itemId: 'carrots',
+        requiredAmount: 2,
+        requiredUnit: 'count',
+        scalable: { unit: 'count', prep: 'chopped' },
+      },
       {
         id: 'i2',
         name: 'Red onion',
@@ -24,10 +34,36 @@ export const sideRecipes: Recipe[] = [
         // KitchenItem.fraction.
         requiredAmount: 1,
         requiredUnit: 'fraction',
+        scalable: { unit: 'count', prep: 'wedged' },
       },
-      { id: 'i3', name: 'Zucchini', emoji: '🥒', quantity: '1, sliced', itemId: 'zucchini' },
-      { id: 'i4', name: 'Bell Pepper', emoji: '🫑', quantity: '1, sliced', itemId: 'bell-pepper' },
-      { id: 'i5', name: 'Olive oil', emoji: '🫒', quantity: '2 tbsp', itemId: 'olive-oil' },
+      {
+        id: 'i3',
+        name: 'Zucchini',
+        emoji: '🥒',
+        quantity: '1, sliced',
+        itemId: 'zucchini',
+        requiredAmount: 1,
+        requiredUnit: 'count',
+        scalable: { unit: 'count', prep: 'sliced' },
+      },
+      {
+        id: 'i4',
+        name: 'Bell Pepper',
+        emoji: '🫑',
+        quantity: '1, sliced',
+        itemId: 'bell-pepper',
+        requiredAmount: 1,
+        requiredUnit: 'count',
+        scalable: { unit: 'count', prep: 'sliced' },
+      },
+      {
+        id: 'i5',
+        name: 'Olive oil',
+        emoji: '🫒',
+        quantity: '2 tbsp',
+        itemId: 'olive-oil',
+        scalable: { amount: 2, unit: 'tbsp' },
+      },
       { id: 'i6', name: 'Salt', emoji: '🧂', quantity: 'to taste', itemId: 'salt' },
     ],
     steps: [
@@ -46,13 +82,22 @@ export const sideRecipes: Recipe[] = [
     effort: 'Bare minimum',
     tags: ['light', 'vegetarian', 'quick'],
     mealTypes: ['side', 'lunch'],
+    servings: 2,
     description: 'A basic salad bulked up with chickpeas so it can stand on its own.',
     ingredients: [
       // A head of lettuce yields a widely varying number of cups depending
       // on variety (iceberg vs. romaine vs. butter lettuce) — too
       // inconsistent to honestly approximate as a fraction of the divisible
-      // unit, unlike broccoli's more consistent floret yield elsewhere.
-      { id: 'i1', name: 'Lettuce', emoji: '🥬', quantity: '2 cups, chopped', itemId: 'lettuce' },
+      // unit, unlike broccoli's more consistent floret yield elsewhere. The
+      // cup measure itself is still an honest, scalable cooking quantity.
+      {
+        id: 'i1',
+        name: 'Lettuce',
+        emoji: '🥬',
+        quantity: '2 cups, chopped',
+        itemId: 'lettuce',
+        scalable: { amount: 2, unit: 'cup', prep: 'chopped' },
+      },
       {
         id: 'i2',
         name: 'Chickpeas',
@@ -61,6 +106,7 @@ export const sideRecipes: Recipe[] = [
         itemId: 'chickpeas',
         requiredAmount: 1,
         requiredUnit: 'count',
+        scalable: { unit: 'count', noun: { singular: 'can', plural: 'cans' }, prep: 'drained' },
       },
       {
         id: 'i3',
@@ -70,8 +116,18 @@ export const sideRecipes: Recipe[] = [
         itemId: 'tomato',
         requiredAmount: 1,
         requiredUnit: 'count',
+        scalable: { unit: 'count', prep: 'diced' },
       },
-      { id: 'i4', name: 'Olive oil', emoji: '🫒', quantity: '2 tbsp', itemId: 'olive-oil' },
+      {
+        id: 'i4',
+        name: 'Olive oil',
+        emoji: '🫒',
+        quantity: '2 tbsp',
+        itemId: 'olive-oil',
+        scalable: { amount: 2, unit: 'tbsp' },
+      },
+      // A "juice of ½" garnish-scale amount isn't a clean scalable quantity
+      // — stays authored text at any serving count.
       { id: 'i5', name: 'Lemon', emoji: '🍋', quantity: 'juice of ½', itemId: 'lemon', optional: true },
     ],
     steps: [
@@ -89,6 +145,7 @@ export const sideRecipes: Recipe[] = [
     effort: 'Bare minimum',
     tags: ['cheap', 'quick'],
     mealTypes: ['side'],
+    servings: 4,
     description: 'Simple rice finished with garlic and butter — pairs with almost anything.',
     ingredients: [
       {
@@ -98,12 +155,33 @@ export const sideRecipes: Recipe[] = [
         quantity: '2 cups, cooked',
         itemId: 'rice',
         // Rice is the whole point of this dish, same coarse staple-level
-        // threshold as chicken-and-rice's rice.
+        // threshold as chicken-and-rice's rice — never scales.
         requiredAmount: 2,
         requiredUnit: 'level',
+        scalable: { amount: 2, unit: 'cup', prep: 'cooked' },
       },
-      { id: 'i2', name: 'Butter', emoji: '🧈', quantity: '2 tbsp', itemId: 'butter' },
-      { id: 'i3', name: 'Garlic', emoji: '🧄', quantity: '2 cloves, minced', itemId: 'garlic' },
+      {
+        id: 'i2',
+        name: 'Butter',
+        emoji: '🧈',
+        quantity: '2 tbsp',
+        itemId: 'butter',
+        scalable: { amount: 2, unit: 'tbsp' },
+      },
+      {
+        id: 'i3',
+        name: 'Garlic',
+        emoji: '🧄',
+        quantity: '2 cloves, minced',
+        itemId: 'garlic',
+        scalable: {
+          amount: 2,
+          unit: 'count',
+          noun: { singular: 'clove', plural: 'cloves' },
+          prep: 'minced',
+          cookingHint: { amountPerUnit: 1, unit: 'tsp', prep: 'minced' },
+        },
+      },
     ],
     steps: [
       { instruction: 'Cook the rice according to package directions.', timerMinutes: 15 },
@@ -121,6 +199,7 @@ export const sideRecipes: Recipe[] = [
     effort: 'Bare minimum',
     tags: ['light', 'vegetarian', 'cheap'],
     mealTypes: ['side'],
+    servings: 4,
     description: 'Caramelized roasted broccoli — the easiest side there is.',
     ingredients: [
       {
@@ -133,9 +212,31 @@ export const sideRecipes: Recipe[] = [
         // roasted-veggies' whole onion above.
         requiredAmount: 1,
         requiredUnit: 'fraction',
+        scalable: { unit: 'count', noun: { singular: 'head', plural: 'heads' }, prep: 'cut into florets' },
       },
-      { id: 'i2', name: 'Olive oil', emoji: '🫒', quantity: '2 tbsp', itemId: 'olive-oil' },
-      { id: 'i3', name: 'Garlic', emoji: '🧄', quantity: '2 cloves, minced', itemId: 'garlic', optional: true },
+      {
+        id: 'i2',
+        name: 'Olive oil',
+        emoji: '🫒',
+        quantity: '2 tbsp',
+        itemId: 'olive-oil',
+        scalable: { amount: 2, unit: 'tbsp' },
+      },
+      {
+        id: 'i3',
+        name: 'Garlic',
+        emoji: '🧄',
+        quantity: '2 cloves, minced',
+        itemId: 'garlic',
+        optional: true,
+        scalable: {
+          amount: 2,
+          unit: 'count',
+          noun: { singular: 'clove', plural: 'cloves' },
+          prep: 'minced',
+          cookingHint: { amountPerUnit: 1, unit: 'tsp', prep: 'minced' },
+        },
+      },
       { id: 'i4', name: 'Salt', emoji: '🧂', quantity: 'to taste', itemId: 'salt' },
     ],
     steps: [

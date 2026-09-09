@@ -227,15 +227,25 @@ export const REQUIRED_UNIT_STOCK_TYPE: Record<RequiredUnit, StockType> = {
  * resolved item's stock type (e.g. a requirement authored for a countable
  * item resolving to a container substitute) — comparing across incompatible
  * scales would be worse than not comparing at all.
+ *
+ * `ratio` is `targetServings / recipe.servings` for the cook in progress —
+ * default `1` reproduces every pre-servings caller's exact behavior
+ * unchanged. `count`/`fraction`/`fill` requirements scale by it; `level`
+ * NEVER does (see RecipeIngredient.requiredUnit's doc comment) — a staple
+ * threshold stays a threshold at any serving count. The comparison always
+ * uses the *unrounded* scaled requirement, never a display-rounded number,
+ * so this can never disagree with what lib/deduction.ts deducts for the
+ * same ingredient at the same ratio (see buildDeductionMap).
  */
-export function quantityStatus(ingredient: RecipeIngredient, item: KitchenItem): QuantityStatus {
+export function quantityStatus(ingredient: RecipeIngredient, item: KitchenItem, ratio: number = 1): QuantityStatus {
   const { requiredAmount, requiredUnit } = ingredient
   if (requiredAmount == null || requiredUnit == null) return 'unknown'
   if (REQUIRED_UNIT_STOCK_TYPE[requiredUnit] !== item.stockType) return 'unknown'
 
+  const effectiveRequired = requiredUnit === 'level' ? requiredAmount : requiredAmount * ratio
   const usable = usableAmount(item)
   if (usable <= 1e-9) return 'none'
-  if (usable + 1e-9 >= requiredAmount) return 'enough'
+  if (usable + 1e-9 >= effectiveRequired) return 'enough'
   return 'partial'
 }
 
@@ -267,14 +277,17 @@ function stockedItem(id: string, items: KitchenItem[]): KitchenItem | undefined 
  *
  * This is the substitute-aware sibling of `findItem`/`findMatchingKitchenItem`
  * — use this wherever a same-family stand-in should be allowed to count.
+ *
+ * `ratio` (default `1`) is passed straight through to `quantityStatus` — see
+ * its doc comment.
  */
-export function matchIngredient(ingredient: RecipeIngredient, items: KitchenItem[]): IngredientMatch {
+export function matchIngredient(ingredient: RecipeIngredient, items: KitchenItem[], ratio: number = 1): IngredientMatch {
   if (ingredient.itemId) {
     // Exact identity always wins over a substitute whenever it has any raw
     // stock at all — quantity never changes *which* item is preferred, only
     // how that resolved item's `quantity` is reported (see quantityStatus).
     const exact = stockedItem(ingredient.itemId, items)
-    if (exact) return { ingredient, kind: 'exact', matchedItem: exact, quantity: quantityStatus(ingredient, exact) }
+    if (exact) return { ingredient, kind: 'exact', matchedItem: exact, quantity: quantityStatus(ingredient, exact, ratio) }
 
     const entry = catalog.find((c) => c.id === ingredient.itemId)
     for (const substituteId of entry?.substitutes ?? []) {
@@ -285,7 +298,7 @@ export function matchIngredient(ingredient: RecipeIngredient, items: KitchenItem
           kind: 'substitute',
           matchedItem: substitute,
           substitutedFor: ingredient.itemId,
-          quantity: quantityStatus(ingredient, substitute),
+          quantity: quantityStatus(ingredient, substitute, ratio),
         }
       }
     }
@@ -307,7 +320,7 @@ export function matchIngredient(ingredient: RecipeIngredient, items: KitchenItem
     }
   }
   if (named && itemHasStock(named)) {
-    return { ingredient, kind: 'exact', matchedItem: named, quantity: quantityStatus(ingredient, named) }
+    return { ingredient, kind: 'exact', matchedItem: named, quantity: quantityStatus(ingredient, named, ratio) }
   }
   return { ingredient, kind: 'missing', quantity: 'none' }
 }
@@ -332,8 +345,9 @@ export type IngredientStatus = 'ok' | 'low' | 'missing'
 export function ingredientStatus(
   ingredient: RecipeIngredient,
   items: KitchenItem[],
+  ratio: number = 1,
 ): IngredientStatus {
-  const match = matchIngredient(ingredient, items)
+  const match = matchIngredient(ingredient, items, ratio)
   if (match.kind === 'missing') return 'missing'
   const item = match.matchedItem!
 
@@ -408,7 +422,7 @@ export interface FeasibilityResult {
  * appear in the returned `missing`/`low` arrays so the grocery-list helpers in
  * RecipeDetail/RecipeCard can offer to add them; that is display only.
  */
-export function computeFeasibility(recipe: Recipe, items: KitchenItem[]): FeasibilityResult {
+export function computeFeasibility(recipe: Recipe, items: KitchenItem[], ratio: number = 1): FeasibilityResult {
   const missing: RecipeIngredient[] = []
   const low: RecipeIngredient[] = []
   // Only a *required* ingredient resolved via an approved substitute should
@@ -424,12 +438,12 @@ export function computeFeasibility(recipe: Recipe, items: KitchenItem[]): Feasib
   const requiredQuantityPartial: RecipeIngredient[] = []
 
   for (const ingredient of recipe.ingredients) {
-    const status = ingredientStatus(ingredient, items)
+    const status = ingredientStatus(ingredient, items, ratio)
     if (status === 'missing') missing.push(ingredient)
     else if (status === 'low') low.push(ingredient)
 
     if (!ingredient.optional && status !== 'missing') {
-      const match = matchIngredient(ingredient, items)
+      const match = matchIngredient(ingredient, items, ratio)
       if (match.kind === 'substitute') hasRequiredSubstitution = true
       if (match.quantity === 'partial') requiredQuantityPartial.push(ingredient)
     }

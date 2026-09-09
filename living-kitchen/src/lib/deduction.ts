@@ -31,13 +31,19 @@ const LEVEL_STEPS: StapleLevel[] = ['plenty', 'some', 'low', 'out']
  * Exported so lib/actualUsageControl.ts (the "I changed something" sheet's
  * initialization logic) can reuse this exact compatibility/extraction rule
  * instead of a second, potentially-drifting copy of it.
+ *
+ * `ratio` (default `1`) is `targetServings / recipe.servings` for the cook in
+ * progress — `count`/`fraction`/`fill` requirements scale by it, `level`
+ * never does (see the null case above). This is the exact same scaling
+ * `lib/kitchen.ts`'s `quantityStatus` applies to the same field, so readiness
+ * and deduction can never diverge for the same ingredient at the same ratio.
  */
-export function structuredUsedAmount(ingredient: RecipeIngredient, item: KitchenItem): number | null {
+export function structuredUsedAmount(ingredient: RecipeIngredient, item: KitchenItem, ratio: number = 1): number | null {
   const { requiredAmount, requiredUnit } = ingredient
   if (requiredAmount == null || requiredUnit == null) return null
   if (requiredUnit === 'level') return null
   if (REQUIRED_UNIT_STOCK_TYPE[requiredUnit] !== item.stockType) return null
-  return Math.max(0, requiredAmount)
+  return Math.max(0, requiredAmount * ratio)
 }
 
 /**
@@ -118,18 +124,25 @@ export function suggestDeduction(item: KitchenItem, usedUnits?: number): Kitchen
  * recipe passed in, so re-running it for a different recipe fully replaces the
  * previous result (see Finished.tsx — this is what prevents a client-side nav
  * between two /finished routes from leaving stale deductions on screen).
+ *
+ * `ratio` (default `1`) is `targetServings / recipe.servings` — passed
+ * through to `structuredUsedAmount` untouched. It never affects the fixed
+ * per-stock-type fallback (`suggestDeduction`'s own 1/0.25/0.15 defaults):
+ * when there's no honest structured requirement to scale, scaling a made-up
+ * constant wouldn't make it more honest, only more falsely precise.
  */
 export function buildDeductionMap(
   recipe: Recipe,
   items: KitchenItem[],
   actualUsage?: Record<string, number>,
+  ratio: number = 1,
 ): Record<string, KitchenDeduction> {
   const map: Record<string, KitchenDeduction> = {}
   for (const ingredient of recipe.ingredients) {
     const matched = matchIngredient(ingredient, items).matchedItem
     if (!matched) continue
     const explicit = ingredient.itemId ? actualUsage?.[ingredient.itemId] : undefined
-    const used = explicit ?? structuredUsedAmount(ingredient, matched) ?? undefined
+    const used = explicit ?? structuredUsedAmount(ingredient, matched, ratio) ?? undefined
     map[matched.id] = suggestDeduction(matched, used)
   }
   return map

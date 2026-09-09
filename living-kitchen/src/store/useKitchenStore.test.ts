@@ -313,6 +313,7 @@ function testRecipe(ingredients: RecipeIngredient[]): Recipe {
     effort: 'Normal',
     tags: [],
     mealTypes: ['dinner'],
+    servings: 2,
     description: '',
     ingredients,
     steps: [],

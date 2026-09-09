@@ -6,6 +6,7 @@ import type { KitchenItem, RecipeIngredient } from '../data/types'
 import { groceryItemForIngredient } from '../lib/grocery'
 import { ingredientStatus, itemDisplayAmount, type IngredientStatus } from '../lib/kitchen'
 import { matchIngredient } from '../lib/recipeMatch'
+import { servingsRatio } from '../lib/scaleRecipe'
 import { type AdaptChoice, useKitchenStore } from '../store/useKitchenStore'
 
 type Kind = 'reserved' | 'missing' | 'low'
@@ -134,6 +135,20 @@ export default function AdaptRecipe() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
+  // The session's own serving target, once one exists — set from
+  // RecipeDetail's preview at the moment cooking started (see
+  // store/useKitchenStore.ts's startCooking). Falls back to the recipe's own
+  // base servings (ratio 1) if a session for a *different* recipe is somehow
+  // still around when this mounts, matching the effect below which
+  // immediately starts a fresh session for `id` in that case.
+  const sessionMatchesThisRecipe = cookingSession != null && cookingSession.recipeId === id
+  const ratio = recipe
+    ? servingsRatio(
+        recipe,
+        sessionMatchesThisRecipe ? cookingSession!.targetServings ?? recipe.servings : recipe.servings,
+      )
+    : 1
+
   const problems = useMemo(() => {
     if (!recipe) return []
     return recipe.ingredients
@@ -145,11 +160,11 @@ export default function AdaptRecipe() {
         // instead of a stale/missing exact item's. A fully-stocked ('ok')
         // substitute is filtered out below like any other resolved
         // ingredient, never presented as an unresolved problem.
-        item: matchIngredient(ing, items).matchedItem,
-        status: ingredientStatus(ing, items),
+        item: matchIngredient(ing, items, ratio).matchedItem,
+        status: ingredientStatus(ing, items, ratio),
       }))
       .filter((p) => p.status !== 'ok')
-  }, [recipe, items])
+  }, [recipe, items, ratio])
 
   if (!recipe) return null
 

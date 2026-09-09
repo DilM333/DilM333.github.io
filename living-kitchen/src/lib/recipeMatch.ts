@@ -104,8 +104,15 @@ export interface RecipeMatch {
   lowConfidenceRequired: IngredientMatch[]
 }
 
-/** Deterministic, presence/absence match of one recipe against the current kitchen. */
-export function matchRecipe(recipe: Recipe, items: KitchenItem[]): RecipeMatch {
+/**
+ * Deterministic, presence/absence (+ structured quantity, where honest) match
+ * of one recipe against the current kitchen. `ratio` (default `1`, i.e. the
+ * recipe's own base `servings`) is passed through to `matchIngredient` —
+ * pass `targetServings / recipe.servings` for a specific cook in progress.
+ * Every existing caller that omits it gets byte-identical behavior to before
+ * servings existed.
+ */
+export function matchRecipe(recipe: Recipe, items: KitchenItem[], ratio: number = 1): RecipeMatch {
   const availableIngredients: RecipeIngredient[] = []
   const missingIngredients: RecipeIngredient[] = []
   const availableOptionalIngredients: RecipeIngredient[] = []
@@ -115,7 +122,7 @@ export function matchRecipe(recipe: Recipe, items: KitchenItem[]): RecipeMatch {
   let hasSubstitutions = false
 
   for (const ingredient of recipe.ingredients) {
-    const match = matchIngredient(ingredient, items)
+    const match = matchIngredient(ingredient, items, ratio)
     ingredientMatches.push(match)
     const available = match.kind !== 'missing'
     if (ingredient.optional) {

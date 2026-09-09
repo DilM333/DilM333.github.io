@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { KitchenItem, Recipe, RecipeIngredient } from '../data/types'
 import { buildDeductionMap, suggestDeduction } from './deduction'
+import { computeFeasibility } from './kitchen'
 
 function item(overrides: Partial<KitchenItem> & Pick<KitchenItem, 'id' | 'name'>): KitchenItem {
   return {
@@ -28,6 +29,7 @@ function recipe(overrides: Partial<Recipe> & Pick<Recipe, 'id' | 'ingredients'>)
     effort: 'Normal',
     tags: [],
     mealTypes: ['dinner'],
+    servings: 2,
     description: 'A recipe for testing.',
     steps: [],
     ...overrides,
@@ -240,5 +242,79 @@ describe('buildDeductionMap: priority is explicit actualUsage > structured requi
     const items = [item({ id: 'potatoes', name: 'Potatoes', count: 10 })]
     const r = recipe({ id: 'r', ingredients: [ing({ id: 'i1', name: 'Potatoes', itemId: 'potatoes' })] })
     expect(buildDeductionMap(r, items).potatoes.newCount).toBe(9)
+  })
+})
+
+describe('buildDeductionMap: servings ratio scales count/fraction/fill requirements, never level', () => {
+  it('scales a count requirement by ratio', () => {
+    const items = [item({ id: 'potatoes', name: 'Potatoes', count: 10 })]
+    const r = recipe({
+      id: 'r',
+      ingredients: [ing({ id: 'i1', name: 'Potatoes', itemId: 'potatoes', requiredAmount: 4, requiredUnit: 'count' })],
+    })
+    expect(buildDeductionMap(r, items, undefined, 1).potatoes.newCount).toBe(6) // 10 - 4
+    expect(buildDeductionMap(r, items, undefined, 2).potatoes.newCount).toBe(2) // 10 - 8
+  })
+
+  it('scales a fraction requirement by ratio', () => {
+    const items = [item({ id: 'onion', name: 'Onion', stockType: 'divisible', fraction: 2 })]
+    const r = recipe({
+      id: 'r',
+      ingredients: [ing({ id: 'i1', name: 'Onion', itemId: 'onion', requiredAmount: 0.5, requiredUnit: 'fraction' })],
+    })
+    expect(buildDeductionMap(r, items, undefined, 2).onion.newFraction).toBe(1) // 2 - 1.0
+  })
+
+  it('scales a fill requirement by ratio', () => {
+    const items = [item({ id: 'broth', name: 'Broth', stockType: 'container', fill: 1 })]
+    const r = recipe({
+      id: 'r',
+      ingredients: [ing({ id: 'i1', name: 'Broth', itemId: 'broth', requiredAmount: 0.5, requiredUnit: 'fill' })],
+    })
+    expect(buildDeductionMap(r, items, undefined, 2).broth.newFill).toBe(0) // 1 - 1.0
+  })
+
+  it('never scales a level requirement — always the flat one-tier step, at any ratio', () => {
+    const items = [item({ id: 'rice', name: 'Rice', stockType: 'staple', level: 'plenty' })]
+    const r = recipe({
+      id: 'r',
+      ingredients: [ing({ id: 'i1', name: 'Rice', itemId: 'rice', requiredAmount: 3, requiredUnit: 'level' })],
+    })
+    expect(buildDeductionMap(r, items, undefined, 1).rice.newLevel).toBe('some')
+    expect(buildDeductionMap(r, items, undefined, 4).rice.newLevel).toBe('some')
+  })
+
+  it('an explicit actualUsage still overrides a ratio-scaled requiredAmount', () => {
+    const items = [item({ id: 'potatoes', name: 'Potatoes', count: 20 })]
+    const r = recipe({
+      id: 'r',
+      ingredients: [ing({ id: 'i1', name: 'Potatoes', itemId: 'potatoes', requiredAmount: 4, requiredUnit: 'count' })],
+    })
+    // Ratio alone would deduct 8 (-> 12); an explicit actualUsage of 5 must win regardless.
+    expect(buildDeductionMap(r, items, { potatoes: 5 }, 2).potatoes.newCount).toBe(15)
+  })
+})
+
+describe('the core trust guarantee: readiness and deduction can never disagree at the same ratio', () => {
+  it('computeFeasibility and buildDeductionMap derive from the literal same requiredAmount * ratio for a count ingredient', () => {
+    const chickenItem = item({ id: 'chicken-breast', name: 'Chicken breast', count: 4 })
+    const items = [chickenItem]
+    const ingredient = ing({
+      id: 'i1',
+      name: 'Chicken breast',
+      itemId: 'chicken-breast',
+      requiredAmount: 2,
+      requiredUnit: 'count',
+    })
+    const r = recipe({ id: 'r', ingredients: [ingredient] })
+
+    // At ratio 2, the effective requirement is 4 — exactly what's on hand,
+    // so readiness reads 'ready' (nothing missing, nothing short) AND the
+    // deduction takes exactly 4, leaving 0. If these ever used two
+    // independently-computed numbers, a drift between them could show
+    // "Ready" while quietly deducting the wrong amount — this test fails if
+    // that ever happens.
+    expect(computeFeasibility(r, items, 2).status).toBe('ready')
+    expect(buildDeductionMap(r, items, undefined, 2)['chicken-breast'].newCount).toBe(0)
   })
 })

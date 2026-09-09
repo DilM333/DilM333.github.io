@@ -11,13 +11,39 @@ export const breakfastRecipes: Recipe[] = [
     effort: 'Bare minimum',
     tags: ['quick', 'vegetarian', 'lunch'],
     mealTypes: ['breakfast', 'lunch'],
+    servings: 1,
     description: 'A fluffy skillet omelet filled with whatever is on hand.',
     ingredients: [
-      { id: 'i1', name: 'Eggs', emoji: '🥚', quantity: '3', itemId: 'eggs' },
-      { id: 'i2', name: 'Butter', emoji: '🧈', quantity: '1 tbsp', itemId: 'butter' },
+      { id: 'i1', name: 'Eggs', emoji: '🥚', quantity: '3', itemId: 'eggs', requiredAmount: 3, requiredUnit: 'count' },
+      {
+        id: 'i2',
+        name: 'Butter',
+        emoji: '🧈',
+        quantity: '1 tbsp',
+        itemId: 'butter',
+        scalable: { amount: 1, unit: 'tbsp' },
+      },
       { id: 'i3', name: 'Milk', emoji: '🥛', quantity: 'splash', itemId: 'milk' },
-      { id: 'i4', name: 'Bell Pepper', emoji: '🫑', quantity: '¼, diced', itemId: 'bell-pepper' },
-      { id: 'i5', name: 'Parmesan', emoji: '🧀', quantity: '2 tbsp', itemId: 'parmesan', optional: true },
+      {
+        id: 'i4',
+        name: 'Bell Pepper',
+        emoji: '🫑',
+        quantity: '¼, diced',
+        itemId: 'bell-pepper',
+        // A quarter of a whole countable pepper isn't a whole-unit count —
+        // display can honestly show the fraction; inventory readiness stays
+        // presence/absence (no requiredAmount).
+        scalable: { amount: 0.25, unit: 'count', prep: 'diced' },
+      },
+      {
+        id: 'i5',
+        name: 'Parmesan',
+        emoji: '🧀',
+        quantity: '2 tbsp',
+        itemId: 'parmesan',
+        optional: true,
+        scalable: { amount: 2, unit: 'tbsp' },
+      },
     ],
     steps: [
       { instruction: 'Whisk eggs with a splash of milk.' },
@@ -36,14 +62,30 @@ export const breakfastRecipes: Recipe[] = [
     effort: 'Bare minimum',
     tags: ['quick', 'vegetarian', 'cheap'],
     mealTypes: ['breakfast'],
+    servings: 2,
     description: 'The simplest breakfast there is — a crispy fried egg over buttered toast.',
     ingredients: [
       { id: 'i1', name: 'Eggs', emoji: '🥚', quantity: '2', itemId: 'eggs', requiredAmount: 2, requiredUnit: 'count' },
       // Bread's stock model tracks whole loaves, not slices — "2 slices"
       // can't be honestly expressed as a structured count against that
-      // scale, so this stays unstructured (presence/absence only).
-      { id: 'i2', name: 'Bread', emoji: '🍞', quantity: '2 slices', itemId: 'bread' },
-      { id: 'i3', name: 'Butter', emoji: '🧈', quantity: '1 tbsp', itemId: 'butter' },
+      // scale, so requiredAmount stays unset (presence/absence only). The
+      // slice count itself is still an honest, scalable cooking quantity.
+      {
+        id: 'i2',
+        name: 'Bread',
+        emoji: '🍞',
+        quantity: '2 slices',
+        itemId: 'bread',
+        scalable: { amount: 2, unit: 'count', noun: { singular: 'slice', plural: 'slices' } },
+      },
+      {
+        id: 'i3',
+        name: 'Butter',
+        emoji: '🧈',
+        quantity: '1 tbsp',
+        itemId: 'butter',
+        scalable: { amount: 1, unit: 'tbsp' },
+      },
     ],
     steps: [
       { instruction: 'Toast the bread slices until golden.' },
@@ -61,14 +103,37 @@ export const breakfastRecipes: Recipe[] = [
     effort: 'Bare minimum',
     tags: ['quick', 'vegetarian', 'light'],
     mealTypes: ['breakfast', 'snack'],
+    servings: 1,
     description: 'A five-minute bowl that turns yogurt and berries into a real breakfast.',
     ingredients: [
       // Yogurt tubs vary too widely (single-serve cup vs. family tub) to
       // honestly approximate "1 cup" as a fixed fill fraction — left
-      // unstructured rather than guessed.
-      { id: 'i1', name: 'Greek yogurt', emoji: '🥣', quantity: '1 cup', itemId: 'greek-yogurt' },
-      { id: 'i2', name: 'Blueberries', emoji: '🫐', quantity: '½ cup', itemId: 'blueberries' },
-      { id: 'i3', name: 'Honey', emoji: '🍯', quantity: '1 tbsp, drizzled', itemId: 'honey', optional: true },
+      // unstructured for inventory; the cup measure itself still scales.
+      {
+        id: 'i1',
+        name: 'Greek yogurt',
+        emoji: '🥣',
+        quantity: '1 cup',
+        itemId: 'greek-yogurt',
+        scalable: { amount: 1, unit: 'cup' },
+      },
+      {
+        id: 'i2',
+        name: 'Blueberries',
+        emoji: '🫐',
+        quantity: '½ cup',
+        itemId: 'blueberries',
+        scalable: { amount: 0.5, unit: 'cup' },
+      },
+      {
+        id: 'i3',
+        name: 'Honey',
+        emoji: '🍯',
+        quantity: '1 tbsp, drizzled',
+        itemId: 'honey',
+        optional: true,
+        scalable: { amount: 1, unit: 'tbsp', prep: 'drizzled' },
+      },
     ],
     steps: [
       { instruction: 'Spoon the yogurt into a bowl.' },
@@ -85,14 +150,46 @@ export const breakfastRecipes: Recipe[] = [
     effort: 'Bare minimum',
     tags: ['vegetarian', 'cheap'],
     mealTypes: ['breakfast'],
+    servings: 1,
     description: 'Stir it together tonight, wake up to breakfast that is already done.',
     ingredients: [
-      { id: 'i1', name: 'Oats', emoji: '🌾', quantity: '½ cup', itemId: 'oats' },
+      {
+        id: 'i1',
+        name: 'Oats',
+        emoji: '🌾',
+        quantity: '½ cup',
+        itemId: 'oats',
+        scalable: { amount: 0.5, unit: 'cup' },
+      },
       // A "½ cup" splash of milk is too small a fraction of any real carton
-      // size to honestly express as a fill amount.
-      { id: 'i2', name: 'Milk', emoji: '🥛', quantity: '½ cup', itemId: 'milk' },
-      { id: 'i3', name: 'Honey', emoji: '🍯', quantity: '1 tsp', itemId: 'honey', optional: true },
-      { id: 'i4', name: 'Blueberries', emoji: '🫐', quantity: '¼ cup', itemId: 'blueberries', optional: true },
+      // size to honestly express as a fill amount — stays unstructured for
+      // inventory; the cup measure itself still scales.
+      {
+        id: 'i2',
+        name: 'Milk',
+        emoji: '🥛',
+        quantity: '½ cup',
+        itemId: 'milk',
+        scalable: { amount: 0.5, unit: 'cup' },
+      },
+      {
+        id: 'i3',
+        name: 'Honey',
+        emoji: '🍯',
+        quantity: '1 tsp',
+        itemId: 'honey',
+        optional: true,
+        scalable: { amount: 1, unit: 'tsp' },
+      },
+      {
+        id: 'i4',
+        name: 'Blueberries',
+        emoji: '🫐',
+        quantity: '¼ cup',
+        itemId: 'blueberries',
+        optional: true,
+        scalable: { amount: 0.25, unit: 'cup' },
+      },
     ],
     steps: [
       { instruction: 'Stir the oats and milk together in a jar or bowl.' },
@@ -110,11 +207,26 @@ export const breakfastRecipes: Recipe[] = [
     effort: 'Normal',
     tags: ['comforting'],
     mealTypes: ['breakfast'],
+    servings: 2,
     description: 'Fluffy pancakes with mashed banana folded right into the batter.',
     ingredients: [
-      { id: 'i1', name: 'Flour', emoji: '🌾', quantity: '1 cup', itemId: 'flour' },
+      {
+        id: 'i1',
+        name: 'Flour',
+        emoji: '🌾',
+        quantity: '1 cup',
+        itemId: 'flour',
+        scalable: { amount: 1, unit: 'cup' },
+      },
       { id: 'i2', name: 'Eggs', emoji: '🥚', quantity: '1', itemId: 'eggs', requiredAmount: 1, requiredUnit: 'count' },
-      { id: 'i3', name: 'Milk', emoji: '🥛', quantity: '¾ cup', itemId: 'milk' },
+      {
+        id: 'i3',
+        name: 'Milk',
+        emoji: '🥛',
+        quantity: '¾ cup',
+        itemId: 'milk',
+        scalable: { amount: 0.75, unit: 'cup' },
+      },
       {
         id: 'i4',
         name: 'Banana',
@@ -123,8 +235,18 @@ export const breakfastRecipes: Recipe[] = [
         itemId: 'banana',
         requiredAmount: 1,
         requiredUnit: 'count',
+        // No `amount` — reuses requiredAmount above; just carries the prep text.
+        scalable: { unit: 'count', prep: 'mashed' },
       },
-      { id: 'i5', name: 'Butter', emoji: '🧈', quantity: '1 tbsp, for the pan', itemId: 'butter', optional: true },
+      {
+        id: 'i5',
+        name: 'Butter',
+        emoji: '🧈',
+        quantity: '1 tbsp, for the pan',
+        itemId: 'butter',
+        optional: true,
+        scalable: { amount: 1, unit: 'tbsp', prep: 'for the pan' },
+      },
     ],
     steps: [
       { instruction: 'Mash the banana in a large bowl.' },

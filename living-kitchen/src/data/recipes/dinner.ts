@@ -16,10 +16,20 @@ export const dinnerRecipes: Recipe[] = [
     effort: 'Normal',
     tags: ['comforting', 'quick'],
     mealTypes: ['dinner'],
+    servings: 2,
     description:
       'Pan-seared chicken breast with crisp potatoes and fresh herbs.',
     ingredients: [
-      { id: 'i1', name: 'Chicken breast', emoji: '🍗', quantity: '2 pieces', itemId: 'chicken-breast' },
+      {
+        id: 'i1',
+        name: 'Chicken breast',
+        emoji: '🍗',
+        quantity: '2 pieces',
+        itemId: 'chicken-breast',
+        requiredAmount: 2,
+        requiredUnit: 'count',
+        scalable: { unit: 'count', noun: { singular: 'piece', plural: 'pieces' } },
+      },
       {
         id: 'i2',
         name: 'Potatoes',
@@ -29,8 +39,22 @@ export const dinnerRecipes: Recipe[] = [
         requiredAmount: 4,
         requiredUnit: 'count',
       },
-      { id: 'i3', name: 'Parsley', emoji: '🌿', quantity: '2 tbsp, chopped', itemId: 'parsley' },
-      { id: 'i4', name: 'Olive oil', emoji: '🫒', quantity: '2 tbsp', itemId: 'olive-oil' },
+      {
+        id: 'i3',
+        name: 'Parsley',
+        emoji: '🌿',
+        quantity: '2 tbsp, chopped',
+        itemId: 'parsley',
+        scalable: { amount: 2, unit: 'tbsp', prep: 'chopped' },
+      },
+      {
+        id: 'i4',
+        name: 'Olive oil',
+        emoji: '🫒',
+        quantity: '2 tbsp',
+        itemId: 'olive-oil',
+        scalable: { amount: 2, unit: 'tbsp' },
+      },
       { id: 'i5', name: 'Salt', emoji: '🧂', quantity: 'to taste', itemId: 'salt' },
     ],
     steps: [
@@ -52,12 +76,40 @@ export const dinnerRecipes: Recipe[] = [
     effort: 'Bare minimum',
     tags: ['quick', 'use-leftovers', 'cheap'],
     mealTypes: ['dinner', 'lunch'],
+    servings: 2,
     description: 'A fast weeknight fried rice using what is on hand.',
     ingredients: [
-      { id: 'i1', name: 'Rice', emoji: '🍚', quantity: '3 cups, cooked', itemId: 'rice' },
-      { id: 'i2', name: 'Eggs', emoji: '🥚', quantity: '3', itemId: 'eggs' },
-      { id: 'i3', name: 'Carrots', emoji: '🥕', quantity: '2, diced', itemId: 'carrots' },
-      { id: 'i4', name: 'Corn', emoji: '🌽', quantity: '1 cup', itemId: 'corn' },
+      {
+        id: 'i1',
+        name: 'Rice',
+        emoji: '🍚',
+        quantity: '3 cups, cooked',
+        itemId: 'rice',
+        scalable: { amount: 3, unit: 'cup', prep: 'cooked' },
+      },
+      { id: 'i2', name: 'Eggs', emoji: '🥚', quantity: '3', itemId: 'eggs', requiredAmount: 3, requiredUnit: 'count' },
+      {
+        id: 'i3',
+        name: 'Carrots',
+        emoji: '🥕',
+        quantity: '2, diced',
+        itemId: 'carrots',
+        requiredAmount: 2,
+        requiredUnit: 'count',
+        scalable: { unit: 'count', prep: 'diced' },
+      },
+      // Corn here is measured by the cup (kernels), not by the ear the
+      // catalog's countable stockType tracks — there's no honest count
+      // conversion between the two, so requiredAmount stays unset; the cup
+      // measure itself is still an honest, scalable cooking quantity.
+      {
+        id: 'i4',
+        name: 'Corn',
+        emoji: '🌽',
+        quantity: '1 cup',
+        itemId: 'corn',
+        scalable: { amount: 1, unit: 'cup' },
+      },
       {
         id: 'i5',
         name: 'Red onion',
@@ -85,12 +137,44 @@ export const dinnerRecipes: Recipe[] = [
     effort: 'Normal',
     tags: ['comforting'],
     mealTypes: ['dinner'],
+    servings: 2,
     description: 'Creamy garlic chicken with spinach and parmesan.',
     ingredients: [
-      { id: 'i1', name: 'Chicken breast', emoji: '🍗', quantity: '2 pieces', itemId: 'chicken-breast' },
-      { id: 'i2', name: 'Spinach', emoji: '🥬', quantity: '2 cups', itemId: 'spinach', optional: true },
-      { id: 'i3', name: 'Parmesan', emoji: '🧀', quantity: '¼ cup', itemId: 'parmesan' },
-      { id: 'i4', name: 'Butter', emoji: '🧈', quantity: '2 tbsp', itemId: 'butter' },
+      {
+        id: 'i1',
+        name: 'Chicken breast',
+        emoji: '🍗',
+        quantity: '2 pieces',
+        itemId: 'chicken-breast',
+        requiredAmount: 2,
+        requiredUnit: 'count',
+        scalable: { unit: 'count', noun: { singular: 'piece', plural: 'pieces' } },
+      },
+      {
+        id: 'i2',
+        name: 'Spinach',
+        emoji: '🥬',
+        quantity: '2 cups',
+        itemId: 'spinach',
+        optional: true,
+        scalable: { amount: 2, unit: 'cup' },
+      },
+      {
+        id: 'i3',
+        name: 'Parmesan',
+        emoji: '🧀',
+        quantity: '¼ cup',
+        itemId: 'parmesan',
+        scalable: { amount: 0.25, unit: 'cup' },
+      },
+      {
+        id: 'i4',
+        name: 'Butter',
+        emoji: '🧈',
+        quantity: '2 tbsp',
+        itemId: 'butter',
+        scalable: { amount: 2, unit: 'tbsp' },
+      },
     ],
     steps: [
       { instruction: 'Sear chicken until golden, set aside.', timerMinutes: 10 },
@@ -109,9 +193,17 @@ export const dinnerRecipes: Recipe[] = [
     effort: 'Normal',
     tags: ['light', 'vegetarian'],
     mealTypes: ['dinner', 'side'],
+    servings: 2,
     description: 'Bright, creamy orzo finished with lemon and parmesan.',
     ingredients: [
-      { id: 'i1', name: 'Orzo', emoji: '🍝', quantity: '1 cup', itemId: 'orzo' },
+      {
+        id: 'i1',
+        name: 'Orzo',
+        emoji: '🍝',
+        quantity: '1 cup',
+        itemId: 'orzo',
+        scalable: { amount: 1, unit: 'cup' },
+      },
       {
         id: 'i2',
         name: 'Vegetable broth',
@@ -120,12 +212,31 @@ export const dinnerRecipes: Recipe[] = [
         itemId: 'broth',
         // Approximate: a typical vegetable broth carton is ~4 cups, so "2
         // cups" is treated as needing about half a full container. This is
-        // a deliberate approximation, not a precise volume conversion.
+        // a deliberate approximation, not a precise volume conversion. The
+        // cup measure below is the separate, independently-scaled human
+        // cooking quantity — both scale by the same servings ratio without
+        // ever being the same number.
         requiredAmount: 0.5,
         requiredUnit: 'fill',
+        scalable: { amount: 2, unit: 'cup' },
       },
-      { id: 'i3', name: 'Parmesan', emoji: '🧀', quantity: '¼ cup', itemId: 'parmesan' },
-      { id: 'i4', name: 'Lemon', emoji: '🍋', quantity: '1', itemId: 'lemon' },
+      {
+        id: 'i3',
+        name: 'Parmesan',
+        emoji: '🧀',
+        quantity: '¼ cup',
+        itemId: 'parmesan',
+        scalable: { amount: 0.25, unit: 'cup' },
+      },
+      {
+        id: 'i4',
+        name: 'Lemon',
+        emoji: '🍋',
+        quantity: '1',
+        itemId: 'lemon',
+        requiredAmount: 1,
+        requiredUnit: 'count',
+      },
     ],
     steps: [
       { instruction: 'Toast orzo in a splash of olive oil.' },
@@ -143,9 +254,20 @@ export const dinnerRecipes: Recipe[] = [
     effort: 'I want to cook',
     tags: ['comforting'],
     mealTypes: ['dinner'],
+    servings: 4,
     description: 'A slow-simmered classic beef and tomato ragu.',
     ingredients: [
-      { id: 'i1', name: 'Ground beef', emoji: '🥩', quantity: '1 lb', itemId: 'ground-beef' },
+      // Ground beef package sizes vary enough (1lb/1.33lb/2lb) that "1 lb"
+      // can't be safely assumed to mean "a full container" — left
+      // unstructured for inventory; the lb measure itself still scales.
+      {
+        id: 'i1',
+        name: 'Ground beef',
+        emoji: '🥩',
+        quantity: '1 lb',
+        itemId: 'ground-beef',
+        scalable: { amount: 1, unit: 'lb' },
+      },
       {
         id: 'i2',
         name: 'Pasta',
@@ -154,13 +276,45 @@ export const dinnerRecipes: Recipe[] = [
         itemId: 'pasta',
         // Coarse ordinal requirement on the same 0(out)..3(plenty) scale as
         // STAPLE_LEVEL_RANK — "1 box" isn't a precise amount, so this reads
-        // as "needs a solidly-stocked pantry level," not a literal count.
+        // as "needs a solidly-stocked pantry level," not a literal count,
+        // and never scales. The box count itself is a separate, honestly
+        // scalable cooking quantity ("2 boxes" for a doubled batch).
         requiredAmount: 3,
         requiredUnit: 'level',
+        scalable: { amount: 1, unit: 'count', noun: { singular: 'box', plural: 'boxes' } },
       },
-      { id: 'i3', name: 'Tomatoes', emoji: '🍅', quantity: '1 can', itemId: 'tomato' },
-      { id: 'i4', name: 'Red onion', emoji: '🧅', quantity: '½', itemId: 'red-onion' },
-      { id: 'i5', name: 'Carrots', emoji: '🥕', quantity: '2', itemId: 'carrots' },
+      // Referenced against the fresh-tomato catalog entry (with
+      // canned-tomatoes as its approved substitute) even though this recipe
+      // means a can — a pre-existing modeling choice from before servings
+      // existed, not something this migration changes. requiredAmount stays
+      // unset here (a "can" isn't honestly 1 whole fresh tomato), but the
+      // can count is still an honest, scalable cooking quantity.
+      {
+        id: 'i3',
+        name: 'Tomatoes',
+        emoji: '🍅',
+        quantity: '1 can',
+        itemId: 'tomato',
+        scalable: { amount: 1, unit: 'count', noun: { singular: 'can', plural: 'cans' } },
+      },
+      {
+        id: 'i4',
+        name: 'Red onion',
+        emoji: '🧅',
+        quantity: '½',
+        itemId: 'red-onion',
+        requiredAmount: 0.5,
+        requiredUnit: 'fraction',
+      },
+      {
+        id: 'i5',
+        name: 'Carrots',
+        emoji: '🥕',
+        quantity: '2',
+        itemId: 'carrots',
+        requiredAmount: 2,
+        requiredUnit: 'count',
+      },
       { id: 'i6', name: 'Parmesan', emoji: '🧀', quantity: 'to finish', itemId: 'parmesan' },
     ],
     steps: [
@@ -179,18 +333,79 @@ export const dinnerRecipes: Recipe[] = [
     effort: 'Normal',
     tags: ['use-leftovers', 'vegetarian', 'light'],
     mealTypes: ['dinner', 'lunch'],
+    servings: 2,
     description: 'A creamy skillet orzo built to use up produce fast.',
     ingredients: [
-      { id: 'i1', name: 'Orzo', emoji: '🍝', quantity: '1 cup', itemId: 'orzo' },
-      { id: 'i2', name: 'Vegetable broth', emoji: '🥫', quantity: '2 cups', itemId: 'broth' },
-      { id: 'i3', name: 'Butter', emoji: '🧈', quantity: '2 tbsp', itemId: 'butter' },
-      { id: 'i4', name: 'Mushrooms', emoji: '🍄', quantity: '8 oz', itemId: 'mushrooms' },
-      { id: 'i5', name: 'Spinach', emoji: '🥬', quantity: '2 cups', itemId: 'spinach' },
-      { id: 'i6', name: 'Red onion', emoji: '🧅', quantity: '½', itemId: 'red-onion' },
-      { id: 'i7', name: 'Parmesan', emoji: '🧀', quantity: '¼ cup', itemId: 'parmesan' },
+      {
+        id: 'i1',
+        name: 'Orzo',
+        emoji: '🍝',
+        quantity: '1 cup',
+        itemId: 'orzo',
+        scalable: { amount: 1, unit: 'cup' },
+      },
+      {
+        id: 'i2',
+        name: 'Vegetable broth',
+        emoji: '🥫',
+        quantity: '2 cups',
+        itemId: 'broth',
+        // Same "~4 cup carton, 2 cups ≈ half" approximation as
+        // lemon-parm-orzo's broth above.
+        requiredAmount: 0.5,
+        requiredUnit: 'fill',
+        scalable: { amount: 2, unit: 'cup' },
+      },
+      {
+        id: 'i3',
+        name: 'Butter',
+        emoji: '🧈',
+        quantity: '2 tbsp',
+        itemId: 'butter',
+        scalable: { amount: 2, unit: 'tbsp' },
+      },
+      // Weighed by the ounce, not the divisible "bunch" fraction the
+      // catalog otherwise tracks — no honest conversion between the two, so
+      // requiredAmount stays unset.
+      {
+        id: 'i4',
+        name: 'Mushrooms',
+        emoji: '🍄',
+        quantity: '8 oz',
+        itemId: 'mushrooms',
+        scalable: { amount: 8, unit: 'oz' },
+      },
+      {
+        id: 'i5',
+        name: 'Spinach',
+        emoji: '🥬',
+        quantity: '2 cups',
+        itemId: 'spinach',
+        scalable: { amount: 2, unit: 'cup' },
+      },
+      {
+        id: 'i6',
+        name: 'Red onion',
+        emoji: '🧅',
+        quantity: '½',
+        itemId: 'red-onion',
+        requiredAmount: 0.5,
+        requiredUnit: 'fraction',
+      },
+      {
+        id: 'i7',
+        name: 'Parmesan',
+        emoji: '🧀',
+        quantity: '¼ cup',
+        itemId: 'parmesan',
+        scalable: { amount: 0.25, unit: 'cup' },
+      },
     ],
     steps: [
-      { instruction: 'Dice ½ onion and finely chop the mushrooms.' },
+      // Reworded to drop the embedded "½ onion" reference — the ingredient
+      // list above (now servings-scaled) is the single source of truth for
+      // how much onion to use; this step never repeats or contradicts it.
+      { instruction: 'Dice the onion and finely chop the mushrooms.' },
       { instruction: 'Melt butter, sauté onion and mushrooms until golden.', timerMinutes: 6 },
       { instruction: 'Add orzo, toast for a minute.' },
       { instruction: 'Add broth gradually, stirring, until absorbed.', timerMinutes: 10 },
@@ -207,12 +422,51 @@ export const dinnerRecipes: Recipe[] = [
     effort: 'Bare minimum',
     tags: ['light', 'vegetarian', 'cheap', 'dinner'],
     mealTypes: ['dinner', 'lunch'],
+    servings: 4,
     description: 'A humble, warming soup built from pantry basics.',
     ingredients: [
-      { id: 'i1', name: 'Vegetable broth', emoji: '🥫', quantity: '4 cups', itemId: 'broth' },
-      { id: 'i2', name: 'Carrots', emoji: '🥕', quantity: '2, sliced', itemId: 'carrots' },
-      { id: 'i3', name: 'Red onion', emoji: '🧅', quantity: '½, diced', itemId: 'red-onion' },
-      { id: 'i4', name: 'Potatoes', emoji: '🥔', quantity: '2, cubed', itemId: 'potatoes' },
+      {
+        id: 'i1',
+        name: 'Vegetable broth',
+        emoji: '🥫',
+        quantity: '4 cups',
+        itemId: 'broth',
+        // 4 cups ≈ a full ~4-cup carton — the same approximation as
+        // lemon-parm-orzo's broth, proportionally extended.
+        requiredAmount: 1,
+        requiredUnit: 'fill',
+        scalable: { amount: 4, unit: 'cup' },
+      },
+      {
+        id: 'i2',
+        name: 'Carrots',
+        emoji: '🥕',
+        quantity: '2, sliced',
+        itemId: 'carrots',
+        requiredAmount: 2,
+        requiredUnit: 'count',
+        scalable: { unit: 'count', prep: 'sliced' },
+      },
+      {
+        id: 'i3',
+        name: 'Red onion',
+        emoji: '🧅',
+        quantity: '½, diced',
+        itemId: 'red-onion',
+        requiredAmount: 0.5,
+        requiredUnit: 'fraction',
+        scalable: { unit: 'count', prep: 'diced' },
+      },
+      {
+        id: 'i4',
+        name: 'Potatoes',
+        emoji: '🥔',
+        quantity: '2, cubed',
+        itemId: 'potatoes',
+        requiredAmount: 2,
+        requiredUnit: 'count',
+        scalable: { unit: 'count', prep: 'cubed' },
+      },
       { id: 'i5', name: 'Salt', emoji: '🧂', quantity: 'to taste', itemId: 'salt' },
     ],
     steps: [
@@ -231,21 +485,50 @@ export const dinnerRecipes: Recipe[] = [
     effort: 'Normal',
     tags: ['comforting', 'dinner'],
     mealTypes: ['dinner'],
+    servings: 2,
     description: 'A one-pot dinner of seared chicken over savory rice.',
     ingredients: [
-      { id: 'i1', name: 'Chicken breast', emoji: '🍗', quantity: '2 pieces', itemId: 'chicken-breast' },
+      {
+        id: 'i1',
+        name: 'Chicken breast',
+        emoji: '🍗',
+        quantity: '2 pieces',
+        itemId: 'chicken-breast',
+        requiredAmount: 2,
+        requiredUnit: 'count',
+        scalable: { unit: 'count', noun: { singular: 'piece', plural: 'pieces' } },
+      },
       {
         id: 'i2',
         name: 'Rice',
         emoji: '🍚',
         quantity: '1 cup',
         itemId: 'rice',
-        // Same coarse staple-level scale as the other seeded staples.
+        // Same coarse staple-level scale as the other seeded staples — never scales.
         requiredAmount: 2,
         requiredUnit: 'level',
+        scalable: { amount: 1, unit: 'cup' },
       },
-      { id: 'i3', name: 'Vegetable broth', emoji: '🥫', quantity: '2 cups', itemId: 'broth' },
-      { id: 'i4', name: 'Carrots', emoji: '🥕', quantity: '1, diced', itemId: 'carrots' },
+      {
+        id: 'i3',
+        name: 'Vegetable broth',
+        emoji: '🥫',
+        quantity: '2 cups',
+        itemId: 'broth',
+        requiredAmount: 0.5,
+        requiredUnit: 'fill',
+        scalable: { amount: 2, unit: 'cup' },
+      },
+      {
+        id: 'i4',
+        name: 'Carrots',
+        emoji: '🥕',
+        quantity: '1, diced',
+        itemId: 'carrots',
+        requiredAmount: 1,
+        requiredUnit: 'count',
+        scalable: { unit: 'count', prep: 'diced' },
+      },
       { id: 'i5', name: 'Salt', emoji: '🧂', quantity: 'to taste', itemId: 'salt' },
     ],
     steps: [
@@ -264,6 +547,7 @@ export const dinnerRecipes: Recipe[] = [
     effort: 'Normal',
     tags: ['comforting', 'vegetarian'],
     mealTypes: ['dinner', 'breakfast'],
+    servings: 2,
     description: 'Eggs poached in a spiced tomato and pepper sauce, one skillet.',
     ingredients: [
       { id: 'i1', name: 'Eggs', emoji: '🥚', quantity: '4', itemId: 'eggs', requiredAmount: 4, requiredUnit: 'count' },
@@ -275,6 +559,7 @@ export const dinnerRecipes: Recipe[] = [
         itemId: 'canned-tomatoes',
         requiredAmount: 1,
         requiredUnit: 'count',
+        scalable: { unit: 'count', noun: { singular: 'can', plural: 'cans' } },
       },
       {
         id: 'i3',
@@ -284,6 +569,7 @@ export const dinnerRecipes: Recipe[] = [
         itemId: 'yellow-onion',
         requiredAmount: 0.5,
         requiredUnit: 'fraction',
+        scalable: { unit: 'count', prep: 'diced' },
       },
       {
         id: 'i4',
@@ -293,11 +579,35 @@ export const dinnerRecipes: Recipe[] = [
         itemId: 'bell-pepper',
         requiredAmount: 1,
         requiredUnit: 'count',
+        scalable: { unit: 'count', prep: 'diced' },
       },
       // "2 cloves" out of a staple's coarse level isn't a meaningful
-      // threshold to seed for a seasoning-scale amount — left unstructured.
-      { id: 'i5', name: 'Garlic', emoji: '🧄', quantity: '2 cloves, minced', itemId: 'garlic' },
-      { id: 'i6', name: 'Cumin', emoji: '🧂', quantity: '1 tsp', itemId: 'cumin', optional: true },
+      // threshold to seed for a seasoning-scale amount — left unstructured
+      // for inventory; the clove count itself is an honest, scalable
+      // cooking quantity, with a curated minced-equivalent hint.
+      {
+        id: 'i5',
+        name: 'Garlic',
+        emoji: '🧄',
+        quantity: '2 cloves, minced',
+        itemId: 'garlic',
+        scalable: {
+          amount: 2,
+          unit: 'count',
+          noun: { singular: 'clove', plural: 'cloves' },
+          prep: 'minced',
+          cookingHint: { amountPerUnit: 1, unit: 'tsp', prep: 'minced' },
+        },
+      },
+      {
+        id: 'i6',
+        name: 'Cumin',
+        emoji: '🧂',
+        quantity: '1 tsp',
+        itemId: 'cumin',
+        optional: true,
+        scalable: { amount: 1, unit: 'tsp' },
+      },
     ],
     steps: [
       { instruction: 'Sauté onion and bell pepper until soft.', timerMinutes: 6 },
@@ -317,12 +627,20 @@ export const dinnerRecipes: Recipe[] = [
     effort: 'Normal',
     tags: ['comforting'],
     mealTypes: ['dinner'],
+    servings: 4,
     description: 'Weeknight ground beef tacos with a quick onion and cheese topping.',
     ingredients: [
       // Ground beef package sizes vary enough (1lb/1.33lb/2lb) that "1 lb"
       // can't be safely assumed to mean "a full container" — left
       // unstructured, matching beef-bolognese's existing precedent above.
-      { id: 'i1', name: 'Ground beef', emoji: '🥩', quantity: '1 lb', itemId: 'ground-beef' },
+      {
+        id: 'i1',
+        name: 'Ground beef',
+        emoji: '🥩',
+        quantity: '1 lb',
+        itemId: 'ground-beef',
+        scalable: { amount: 1, unit: 'lb' },
+      },
       {
         id: 'i2',
         name: 'Tortillas',
@@ -332,7 +650,14 @@ export const dinnerRecipes: Recipe[] = [
         requiredAmount: 8,
         requiredUnit: 'count',
       },
-      { id: 'i3', name: 'Cheddar', emoji: '🧀', quantity: '½ cup, shredded', itemId: 'cheddar' },
+      {
+        id: 'i3',
+        name: 'Cheddar',
+        emoji: '🧀',
+        quantity: '½ cup, shredded',
+        itemId: 'cheddar',
+        scalable: { amount: 0.5, unit: 'cup', prep: 'shredded' },
+      },
       {
         id: 'i4',
         name: 'Yellow onion',
@@ -341,6 +666,7 @@ export const dinnerRecipes: Recipe[] = [
         itemId: 'yellow-onion',
         requiredAmount: 0.25,
         requiredUnit: 'fraction',
+        scalable: { unit: 'count', prep: 'diced' },
       },
     ],
     steps: [
@@ -359,6 +685,7 @@ export const dinnerRecipes: Recipe[] = [
     effort: 'Bare minimum',
     tags: ['vegetarian', 'cheap', 'light'],
     mealTypes: ['dinner', 'lunch'],
+    servings: 4,
     description: 'A pantry-friendly soup that comes together from cans and a carton of broth.',
     ingredients: [
       {
@@ -369,6 +696,7 @@ export const dinnerRecipes: Recipe[] = [
         itemId: 'black-beans',
         requiredAmount: 2,
         requiredUnit: 'count',
+        scalable: { unit: 'count', noun: { singular: 'can', plural: 'cans' } },
       },
       {
         id: 'i2',
@@ -380,6 +708,7 @@ export const dinnerRecipes: Recipe[] = [
         // lemon-parm-orzo's broth above.
         requiredAmount: 0.5,
         requiredUnit: 'fill',
+        scalable: { amount: 2, unit: 'cup' },
       },
       {
         id: 'i3',
@@ -389,9 +718,31 @@ export const dinnerRecipes: Recipe[] = [
         itemId: 'yellow-onion',
         requiredAmount: 0.5,
         requiredUnit: 'fraction',
+        scalable: { unit: 'count', prep: 'diced' },
       },
-      { id: 'i4', name: 'Garlic', emoji: '🧄', quantity: '2 cloves, minced', itemId: 'garlic' },
-      { id: 'i5', name: 'Cumin', emoji: '🧂', quantity: '1 tsp', itemId: 'cumin', optional: true },
+      {
+        id: 'i4',
+        name: 'Garlic',
+        emoji: '🧄',
+        quantity: '2 cloves, minced',
+        itemId: 'garlic',
+        scalable: {
+          amount: 2,
+          unit: 'count',
+          noun: { singular: 'clove', plural: 'cloves' },
+          prep: 'minced',
+          cookingHint: { amountPerUnit: 1, unit: 'tsp', prep: 'minced' },
+        },
+      },
+      {
+        id: 'i5',
+        name: 'Cumin',
+        emoji: '🧂',
+        quantity: '1 tsp',
+        itemId: 'cumin',
+        optional: true,
+        scalable: { amount: 1, unit: 'tsp' },
+      },
     ],
     steps: [
       { instruction: 'Sauté onion and garlic until soft.', timerMinutes: 5 },
@@ -409,6 +760,7 @@ export const dinnerRecipes: Recipe[] = [
     effort: 'Normal',
     tags: ['quick'],
     mealTypes: ['dinner'],
+    servings: 2,
     description: 'A fast stir-fry of seared chicken and broccoli over rice.',
     ingredients: [
       {
@@ -419,6 +771,7 @@ export const dinnerRecipes: Recipe[] = [
         itemId: 'chicken-breast',
         requiredAmount: 2,
         requiredUnit: 'count',
+        scalable: { unit: 'count', noun: { singular: 'piece', plural: 'pieces' }, prep: 'sliced' },
       },
       {
         id: 'i2',
@@ -429,12 +782,34 @@ export const dinnerRecipes: Recipe[] = [
         // A whole head yields roughly 4 cups of florets, so "2 cups" is
         // treated as about half a head — the same kind of deliberate,
         // large-and-clean approximation as broth-to-fill above, not a
-        // precise volume conversion.
+        // precise volume conversion. The cup measure is the separate,
+        // independently-scaled human cooking quantity.
         requiredAmount: 0.5,
         requiredUnit: 'fraction',
+        scalable: { amount: 2, unit: 'cup', prep: 'florets' },
       },
-      { id: 'i3', name: 'Garlic', emoji: '🧄', quantity: '2 cloves, minced', itemId: 'garlic' },
-      { id: 'i4', name: 'Soy sauce', emoji: '🍶', quantity: '2 tbsp', itemId: 'soy-sauce' },
+      {
+        id: 'i3',
+        name: 'Garlic',
+        emoji: '🧄',
+        quantity: '2 cloves, minced',
+        itemId: 'garlic',
+        scalable: {
+          amount: 2,
+          unit: 'count',
+          noun: { singular: 'clove', plural: 'cloves' },
+          prep: 'minced',
+          cookingHint: { amountPerUnit: 1, unit: 'tsp', prep: 'minced' },
+        },
+      },
+      {
+        id: 'i4',
+        name: 'Soy sauce',
+        emoji: '🍶',
+        quantity: '2 tbsp',
+        itemId: 'soy-sauce',
+        scalable: { amount: 2, unit: 'tbsp' },
+      },
       {
         id: 'i5',
         name: 'Rice',
@@ -443,6 +818,7 @@ export const dinnerRecipes: Recipe[] = [
         itemId: 'rice',
         requiredAmount: 2,
         requiredUnit: 'level',
+        scalable: { amount: 2, unit: 'cup', prep: 'cooked' },
       },
     ],
     steps: [
@@ -461,6 +837,7 @@ export const dinnerRecipes: Recipe[] = [
     effort: 'Normal',
     tags: ['comforting', 'cheap'],
     mealTypes: ['dinner', 'lunch'],
+    servings: 4,
     description: 'A simple baked potato dressed up with cheddar, bacon, and sour cream.',
     ingredients: [
       {
@@ -472,7 +849,14 @@ export const dinnerRecipes: Recipe[] = [
         requiredAmount: 4,
         requiredUnit: 'count',
       },
-      { id: 'i2', name: 'Cheddar', emoji: '🧀', quantity: '½ cup, shredded', itemId: 'cheddar' },
+      {
+        id: 'i2',
+        name: 'Cheddar',
+        emoji: '🧀',
+        quantity: '½ cup, shredded',
+        itemId: 'cheddar',
+        scalable: { amount: 0.5, unit: 'cup', prep: 'shredded' },
+      },
       {
         id: 'i3',
         name: 'Bacon',
@@ -480,8 +864,17 @@ export const dinnerRecipes: Recipe[] = [
         quantity: '4 slices, cooked and crumbled',
         itemId: 'bacon',
         optional: true,
+        scalable: { amount: 4, unit: 'count', noun: { singular: 'slice', plural: 'slices' }, prep: 'cooked and crumbled' },
       },
-      { id: 'i4', name: 'Sour cream', emoji: '🥛', quantity: '¼ cup', itemId: 'sour-cream', optional: true },
+      {
+        id: 'i4',
+        name: 'Sour cream',
+        emoji: '🥛',
+        quantity: '¼ cup',
+        itemId: 'sour-cream',
+        optional: true,
+        scalable: { amount: 0.25, unit: 'cup' },
+      },
     ],
     steps: [
       { instruction: 'Pierce the potatoes a few times with a fork.' },

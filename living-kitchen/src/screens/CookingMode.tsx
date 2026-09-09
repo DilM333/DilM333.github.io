@@ -41,7 +41,10 @@ export default function CookingMode() {
         <button onClick={close} aria-label="Close cooking mode" className="text-2xl text-cream/70">
           ×
         </button>
-        <p className="text-sm font-semibold text-cream/60">{recipe.name}</p>
+        <div className="text-center">
+          <p className="text-sm font-semibold text-cream/60">{recipe.name}</p>
+          <p className="text-xs text-cream/35">Serves {cookingSession.targetServings ?? recipe.servings}</p>
+        </div>
         <button
           onClick={() => setChangeOpen(true)}
           className="text-xs font-bold uppercase tracking-wide text-butter"

@@ -144,4 +144,17 @@ describe('usageControlFor', () => {
     const ingredient = ing({ id: 'i1', name: 'Eggs', itemId: 'eggs', quantity: '3' })
     expect(usageControlFor(ingredient, matched)).toEqual({ kind: 'countable', initial: 3, step: 1 })
   })
+
+  it('11. servings ratio: a compatible requiredAmount-based initial value scales with the current cook\'s ratio', () => {
+    const matched = item({ id: 'potatoes', name: 'Potatoes', count: 10 })
+    const ingredient = ing({
+      id: 'i1',
+      name: 'Potatoes',
+      itemId: 'potatoes',
+      requiredAmount: 4,
+      requiredUnit: 'count',
+    })
+    expect(usageControlFor(ingredient, matched, 1)).toEqual({ kind: 'countable', initial: 4, step: 1 })
+    expect(usageControlFor(ingredient, matched, 2)).toEqual({ kind: 'countable', initial: 8, step: 1 })
+  })
 })

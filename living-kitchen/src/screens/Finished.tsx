@@ -5,6 +5,7 @@ import { itemDisplayAmount, stockLevel } from '../lib/kitchen'
 import { matchIngredient } from '../lib/recipeMatch'
 import { groceryItemForKitchenItem } from '../lib/grocery'
 import { buildDeductionMap } from '../lib/deduction'
+import { servingsRatio } from '../lib/scaleRecipe'
 import { useKitchenStore, type KitchenDeduction } from '../store/useKitchenStore'
 import type { KitchenItem, StapleLevel } from '../data/types'
 
@@ -34,9 +35,14 @@ export default function Finished() {
     [recipe, items],
   )
 
+  // The exact same ratio readiness used to decide this recipe was ready (see
+  // RecipeDetail/AdaptRecipe) — never recomputed independently, so what gets
+  // deducted can never disagree with what was shown as needed.
+  const ratio = recipe ? servingsRatio(recipe, cookingSession?.targetServings ?? recipe.servings) : 1
+
   const initialDeductions = useMemo(
-    () => (recipe ? buildDeductionMap(recipe, items, cookingSession?.actualUsage) : {}),
-    [recipe, items, cookingSession],
+    () => (recipe ? buildDeductionMap(recipe, items, cookingSession?.actualUsage, ratio) : {}),
+    [recipe, items, cookingSession, ratio],
   )
 
   const [deductions, setDeductions] = useState(initialDeductions)

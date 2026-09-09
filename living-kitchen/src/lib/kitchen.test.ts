@@ -119,6 +119,7 @@ function recipe(overrides: Partial<Recipe> & Pick<Recipe, 'id' | 'ingredients'>)
     effort: 'Normal',
     tags: [],
     mealTypes: ['dinner'],
+    servings: 2,
     description: 'A recipe for testing.',
     steps: [],
     ...overrides,
@@ -599,5 +600,88 @@ describe('stockPatchForLevel', () => {
       expect(stockLevel({ ...base, ...stockPatchForLevel(base, 'low') })).toBe('low')
       expect(stockLevel({ ...base, ...stockPatchForLevel(base, 'out') })).toBe('out')
     }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Servings scaling: quantityStatus/computeFeasibility take an optional
+// `ratio` (targetServings / recipe.servings). Every call site that omits it
+// must behave exactly as before servings existed (default 1) — and
+// count/fraction/fill requirements must scale by it while level never does.
+// ---------------------------------------------------------------------------
+
+describe('quantityStatus with a servings ratio', () => {
+  it('omitting ratio reproduces the unscaled comparison exactly (default 1)', () => {
+    const potato = item({ id: 'potatoes', name: 'Potatoes', count: 3 })
+    const need4 = ing({ id: 'i1', name: 'Potatoes', requiredAmount: 4, requiredUnit: 'count' })
+    expect(quantityStatus(need4, potato)).toBe('partial')
+    expect(quantityStatus(need4, potato, 1)).toBe('partial')
+  })
+
+  it('scales a count requirement by ratio — enough at 1x can become partial at 2x', () => {
+    const potato = item({ id: 'potatoes', name: 'Potatoes', count: 3 })
+    const need2 = ing({ id: 'i1', name: 'Potatoes', requiredAmount: 2, requiredUnit: 'count' })
+    expect(quantityStatus(need2, potato, 1)).toBe('enough') // 3 >= 2
+    expect(quantityStatus(need2, potato, 2)).toBe('partial') // 3 < 4
+  })
+
+  it('scales a fraction requirement by ratio', () => {
+    const onion = item({ id: 'onion', name: 'Onion', stockType: 'divisible', fraction: 1 })
+    const needHalf = ing({ id: 'i1', name: 'Onion', requiredAmount: 0.5, requiredUnit: 'fraction' })
+    expect(quantityStatus(needHalf, onion, 1)).toBe('enough') // 1 >= 0.5
+    expect(quantityStatus(needHalf, onion, 3)).toBe('partial') // 1 < 1.5
+  })
+
+  it('scales a fill requirement by ratio', () => {
+    const broth = item({ id: 'broth', name: 'Broth', stockType: 'container', fill: 1 })
+    const needHalf = ing({ id: 'i1', name: 'Broth', requiredAmount: 0.5, requiredUnit: 'fill' })
+    expect(quantityStatus(needHalf, broth, 1)).toBe('enough')
+    expect(quantityStatus(needHalf, broth, 2)).toBe('enough') // exactly a full container
+    expect(quantityStatus(needHalf, broth, 3)).toBe('partial') // would need 1.5 containers
+  })
+
+  it('never scales a level requirement, at any ratio', () => {
+    const rice = item({ id: 'rice', name: 'Rice', stockType: 'staple', level: 'some' })
+    const needPlenty = ing({ id: 'i1', name: 'Rice', requiredAmount: 3, requiredUnit: 'level' })
+    // STAPLE_LEVEL_RANK: some=2, needs 3 (plenty) -> partial, unaffected by ratio.
+    expect(quantityStatus(needPlenty, rice, 1)).toBe('partial')
+    expect(quantityStatus(needPlenty, rice, 2)).toBe('partial')
+    expect(quantityStatus(needPlenty, rice, 10)).toBe('partial')
+  })
+})
+
+describe('computeFeasibility with a servings ratio', () => {
+  it('a recipe that is ready at 1x can become needs-shopping at 2x for a scaled count requirement', () => {
+    const items: KitchenItem[] = [item({ id: 'chicken-breast', name: 'Chicken breast', count: 2 })]
+    const r = recipe({
+      id: 'r',
+      ingredients: [
+        ing({ id: 'i1', name: 'Chicken breast', itemId: 'chicken-breast', requiredAmount: 2, requiredUnit: 'count' }),
+      ],
+    })
+    expect(computeFeasibility(r, items, 1).status).toBe('ready')
+    // At 2x, the requirement scales to 4 while 2 are on hand — present but
+    // quantitatively short (not fully missing), which is exactly the
+    // existing 'almost' case (see computeFeasibility's own doc comment).
+    expect(computeFeasibility(r, items, 2).status).toBe('almost')
+  })
+
+  it('optional ingredients still never affect status at a scaled ratio', () => {
+    const items: KitchenItem[] = [item({ id: 'chicken-breast', name: 'Chicken breast', count: 4 })]
+    const r = recipe({
+      id: 'r',
+      ingredients: [
+        ing({ id: 'i1', name: 'Chicken breast', itemId: 'chicken-breast', requiredAmount: 2, requiredUnit: 'count' }),
+        ing({
+          id: 'i2',
+          name: 'Parsley',
+          itemId: 'parsley',
+          optional: true,
+          requiredAmount: 1,
+          requiredUnit: 'count',
+        }), // missing entirely, but optional
+      ],
+    })
+    expect(computeFeasibility(r, items, 2).status).toBe('ready') // 4 >= 2*2, missing optional doesn't count
   })
 })

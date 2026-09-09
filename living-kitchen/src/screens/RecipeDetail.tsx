@@ -7,6 +7,7 @@ import StatusPill from '../components/StatusPill'
 import { groceryItemForIngredient } from '../lib/grocery'
 import { computeFeasibility, ingredientStatus } from '../lib/kitchen'
 import { lowConfidenceHint, matchRecipe, matchStatusLabel } from '../lib/recipeMatch'
+import { scaledQuantityLabel, servingsRatio } from '../lib/scaleRecipe'
 import { useKitchenStore } from '../store/useKitchenStore'
 
 const STATUS_ICON: Record<string, string> = { ok: '✓', low: '⚠️', missing: '❌' }
@@ -23,15 +24,29 @@ export default function RecipeDetail() {
   const items = useKitchenStore((s) => s.items)
   const favorites = useKitchenStore((s) => s.favorites)
   const toggleFavorite = useKitchenStore((s) => s.toggleFavorite)
+  const cookingSession = useKitchenStore((s) => s.cookingSession)
   const startCooking = useKitchenStore((s) => s.startCooking)
   const groceryList = useKitchenStore((s) => s.groceryList)
   const addToGroceryList = useKitchenStore((s) => s.addToGroceryList)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
+  // A local preview, not a session mutation — just viewing/adjusting this
+  // page shouldn't imply "I am now cooking this." If a session for this
+  // exact recipe already exists (returning here mid-cook), pick up its
+  // targetServings instead of resetting to the base count. Only committed
+  // into the cooking session at the moment Start Cooking/Adapt is pressed
+  // (see handlePrimary) — from then on, cookingSession.targetServings is the
+  // single source of truth every other cooking screen reads.
+  const [previewServings, setPreviewServings] = useState(() => {
+    const existing = cookingSession != null && cookingSession.recipeId === id ? cookingSession.targetServings : undefined
+    return existing ?? recipe?.servings ?? 1
+  })
+
   if (!recipe) return null
 
-  const { status, missing, low } = computeFeasibility(recipe, items)
-  const match = matchRecipe(recipe, items)
+  const ratio = servingsRatio(recipe, previewServings)
+  const { status, missing, low } = computeFeasibility(recipe, items, ratio)
+  const match = matchRecipe(recipe, items, ratio)
   const checkHint = lowConfidenceHint(match, status)
   const isFavorite = favorites.includes(recipe.id)
   const needsAdapt = status !== 'ready'
@@ -43,13 +58,11 @@ export default function RecipeDetail() {
   const addIngredient = (ing: (typeof short)[number]) =>
     addToGroceryList(groceryItemForIngredient(ing, `For ${recipe.name}`))
 
+  const adjustServings = (delta: number) => setPreviewServings((s) => Math.max(1, s + delta))
+
   const handlePrimary = () => {
-    if (needsAdapt) {
-      navigate(`/recipe/${recipe.id}/adapt`)
-    } else {
-      startCooking(recipe.id)
-      navigate(`/recipe/${recipe.id}/cook`)
-    }
+    startCooking(recipe.id, previewServings)
+    navigate(needsAdapt ? `/recipe/${recipe.id}/adapt` : `/recipe/${recipe.id}/cook`)
   }
 
   return (
@@ -89,6 +102,29 @@ export default function RecipeDetail() {
         )}
         <h1 className="font-display text-2xl font-semibold text-ink">{recipe.name}</h1>
         <p className="text-sm text-ink/60">{recipe.description}</p>
+
+        <div className="flex items-center justify-between rounded-xl2 border border-ink/10 bg-white px-4 py-2.5">
+          <span className="text-sm font-semibold text-ink/70">Serves {previewServings}</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => adjustServings(-1)}
+              aria-label="Fewer servings"
+              disabled={previewServings <= 1}
+              className="flex h-7 w-7 items-center justify-center rounded-full bg-ink/5 text-sm font-bold disabled:opacity-30"
+            >
+              −
+            </button>
+            <span className="w-6 text-center text-sm font-bold tabular-nums">{previewServings}</span>
+            <button
+              onClick={() => adjustServings(1)}
+              aria-label="More servings"
+              className="flex h-7 w-7 items-center justify-center rounded-full bg-ink/5 text-sm font-bold"
+            >
+              +
+            </button>
+          </div>
+        </div>
+
         <div className="flex items-center gap-3 text-xs font-semibold text-ink/50">
           <span>⏱ {recipe.time} min</span>
           <span>•</span>
@@ -108,7 +144,7 @@ export default function RecipeDetail() {
         <SectionHeader>Ingredients</SectionHeader>
         <div className="flex flex-col gap-1.5 rounded-xl2 border border-ink/10 bg-white p-2">
           {recipe.ingredients.map((ing) => {
-            const st = ingredientStatus(ing, items)
+            const st = ingredientStatus(ing, items, ratio)
             return (
               <div key={ing.id} className="flex items-center gap-3 px-2 py-1.5">
                 <span className={`w-5 text-center font-bold ${STATUS_COLOR[st]}`}>
@@ -119,8 +155,13 @@ export default function RecipeDetail() {
                   {ing.name}
                   {ing.optional && <span className="text-ink/40"> (optional)</span>}
                 </span>
-                {st !== 'ok' ? (
-                  onList(ing.name) ? (
+                {/* The scaled quantity is always visible, regardless of stock
+                    status — while cooking, you need to see how much you need
+                    whether or not you already have it. The "+List" affordance
+                    sits alongside it, not in place of it. */}
+                <span className="text-xs text-ink/50">{scaledQuantityLabel(ing, ratio)}</span>
+                {st !== 'ok' &&
+                  (onList(ing.name) ? (
                     <span className="text-xs font-semibold text-leaf">✓ List</span>
                   ) : (
                     <button
@@ -129,10 +170,7 @@ export default function RecipeDetail() {
                     >
                       + List
                     </button>
-                  )
-                ) : (
-                  <span className="text-xs text-ink/50">{ing.quantity}</span>
-                )}
+                  ))}
               </div>
             )
           })}
@@ -145,6 +183,25 @@ export default function RecipeDetail() {
             + Add all {shortNotOnList.length} missing to grocery list
           </button>
         )}
+      </div>
+
+      <div className="flex flex-col gap-2 px-5">
+        <SectionHeader>Instructions</SectionHeader>
+        <ol className="flex flex-col gap-2 rounded-xl2 border border-ink/10 bg-white p-2">
+          {recipe.steps.map((step, i) => (
+            <li key={i} className="flex gap-3 px-2 py-1.5">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ink/5 text-xs font-bold text-ink/60">
+                {i + 1}
+              </span>
+              <span className="text-sm leading-relaxed text-ink/80">
+                {step.instruction}
+                {step.timerMinutes && (
+                  <span className="ml-1.5 text-xs font-semibold text-ink/40">({step.timerMinutes} min)</span>
+                )}
+              </span>
+            </li>
+          ))}
+        </ol>
       </div>
 
       <div className="sticky bottom-0 z-10 mt-auto bg-cream/95 p-5 backdrop-blur">
