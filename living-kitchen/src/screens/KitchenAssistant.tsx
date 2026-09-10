@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import PageHeader from '../components/PageHeader'
 import RecipeCard from '../components/RecipeCard'
+import { askKitchen, type AskKitchenConversationAnchor } from '../lib/askKitchen'
+import { buildAskKitchenContext } from '../lib/askKitchenContext'
 import { getKitchenAssistantGreeting, getKitchenAssistantResponse } from '../lib/kitchenAssistant'
 import { buildKitchenAssistantContext } from '../lib/kitchenAssistantContext'
 import { useKitchenStore } from '../store/useKitchenStore'
@@ -10,6 +12,10 @@ interface ChatMessage {
   role: 'user' | 'assistant'
   text: string
   recipeIds?: string[]
+  /** "Worth checking" style hints — text only, never a raw confidence label. */
+  warnings?: string[]
+  /** Suggested next things to ask, rendered as chips under this message. */
+  followUps?: string[]
 }
 
 const SUGGESTIONS = [
@@ -23,30 +29,87 @@ export default function KitchenAssistant() {
   const items = useKitchenStore((s) => s.items)
   const groceryList = useKitchenStore((s) => s.groceryList)
   const recipes = useKitchenStore((s) => s.recipes)
+  const favorites = useKitchenStore((s) => s.favorites)
+  const cookingSession = useKitchenStore((s) => s.cookingSession)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [draft, setDraft] = useState('')
+  const [sending, setSending] = useState(false)
+  // The one-turn conversation memory (see lib/askKitchen.ts) — never a full
+  // transcript. Replaced wholesale after every turn, AI or fallback alike, so
+  // a follow-up always has *something* recent to resolve "something" against.
+  const [anchor, setAnchor] = useState<AskKitchenConversationAnchor | null>(null)
 
-  // Kitchen/grocery data stays authoritative — this just reshapes the
-  // current store state into the structured snapshot the (future AI-ready)
-  // response engine reasons over. Recomputed whenever the underlying data
-  // changes, so it never goes stale mid-conversation.
-  const context = useMemo(
+  // The existing deterministic engine's own context shape — kept as-is and
+  // used only for the fallback path (empty kitchen, AI unavailable, or a
+  // malformed/unusable model response). Recomputed whenever the underlying
+  // data changes, so it never goes stale mid-conversation.
+  const fallbackContext = useMemo(
     () => buildKitchenAssistantContext(items, groceryList, recipes),
     [items, groceryList, recipes],
   )
   const recipeById = useMemo(() => new Map(recipes.map((r) => [r.id, r] as const)), [recipes])
 
-  const send = (text: string) => {
-    const trimmed = text.trim()
-    if (!trimmed) return
-
-    const response = getKitchenAssistantResponse(trimmed, context)
+  const appendTurn = (userText: string, assistant: Omit<ChatMessage, 'id' | 'role'>) => {
     setMessages((prev) => [
       ...prev,
-      { id: `u-${Date.now()}`, role: 'user', text: trimmed },
-      { id: `a-${Date.now() + 1}`, role: 'assistant', text: response.message, recipeIds: response.recipeIds },
+      { id: `u-${Date.now()}`, role: 'user', text: userText },
+      { id: `a-${Date.now() + 1}`, role: 'assistant', ...assistant },
     ])
+  }
+
+  const fallback = (trimmed: string) => {
+    const response = getKitchenAssistantResponse(trimmed, fallbackContext)
+    appendTurn(trimmed, { text: response.message, recipeIds: response.recipeIds })
+    setAnchor({ lastUserMessage: trimmed, lastRecommendedRecipeIds: response.recipeIds })
+  }
+
+  const send = async (text: string) => {
+    const trimmed = text.trim()
+    if (!trimmed || sending) return
     setDraft('')
+
+    // Empty kitchen: never worth a model call — same message the
+    // deterministic engine has always given, with no network round trip.
+    if (fallbackContext.kitchen.itemCount === 0) {
+      fallback(trimmed)
+      return
+    }
+
+    setSending(true)
+    try {
+      const askContext = buildAskKitchenContext({
+        message: trimmed,
+        items,
+        recipes,
+        groceryList,
+        favorites,
+        cookingSession: cookingSession ? { recipeId: cookingSession.recipeId, targetServings: cookingSession.targetServings } : null,
+        previousRecommendedRecipeIds: anchor?.lastRecommendedRecipeIds ?? [],
+      })
+
+      const outcome = await askKitchen({
+        message: trimmed,
+        context: askContext,
+        anchor: anchor ?? undefined,
+      })
+
+      if (!outcome.ok) {
+        fallback(trimmed)
+        return
+      }
+
+      const { response } = outcome
+      const recipeIds = response.recommendations.map((r) => r.recipeId)
+      appendTurn(trimmed, {
+        text: response.message,
+        recipeIds,
+        warnings: response.warnings.map((w) => w.text),
+        followUps: response.followUps,
+      })
+      setAnchor({ lastUserMessage: trimmed, lastRecommendedRecipeIds: recipeIds })
+    } finally {
+      setSending(false)
+    }
   }
 
   return (
@@ -56,7 +119,7 @@ export default function KitchenAssistant() {
       <div className="flex flex-col gap-3 px-5">
         {messages.length === 0 ? (
           <div className="rounded-xl2 border border-ink/10 bg-white p-4 text-sm text-ink/70 shadow-soft">
-            {getKitchenAssistantGreeting(context)}
+            {getKitchenAssistantGreeting(fallbackContext)}
           </div>
         ) : (
           messages.map((m) => (
@@ -70,6 +133,15 @@ export default function KitchenAssistant() {
               >
                 {m.text}
               </div>
+              {m.warnings && m.warnings.length > 0 && (
+                <div className="mt-1.5 flex w-full max-w-[85%] flex-col gap-1">
+                  {m.warnings.map((w, i) => (
+                    <p key={i} className="text-xs text-[#8a6113]">
+                      ⚠️ {w}
+                    </p>
+                  ))}
+                </div>
+              )}
               {m.recipeIds && m.recipeIds.length > 0 && (
                 <div className="mt-2 flex w-full max-w-[85%] flex-col gap-2">
                   {m.recipeIds
@@ -80,8 +152,29 @@ export default function KitchenAssistant() {
                     ))}
                 </div>
               )}
+              {m.followUps && m.followUps.length > 0 && (
+                <div className="mt-2 flex w-full max-w-[85%] flex-wrap gap-2">
+                  {m.followUps.map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => void send(f)}
+                      disabled={sending}
+                      className="rounded-full border border-ink/15 bg-white px-3 py-1.5 text-xs font-semibold text-ink/70 hover:border-clay/40 disabled:opacity-40"
+                    >
+                      {f}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ))
+        )}
+        {sending && (
+          <div className="flex items-start">
+            <div className="max-w-[85%] rounded-xl2 border border-ink/10 bg-white px-4 py-2.5 text-sm text-ink/40 shadow-soft">
+              Thinking…
+            </div>
+          </div>
         )}
       </div>
 
@@ -89,8 +182,9 @@ export default function KitchenAssistant() {
         {SUGGESTIONS.map((s) => (
           <button
             key={s}
-            onClick={() => send(s)}
-            className="rounded-full border border-ink/15 bg-white px-3 py-1.5 text-xs font-semibold text-ink/70 hover:border-clay/40"
+            onClick={() => void send(s)}
+            disabled={sending}
+            className="rounded-full border border-ink/15 bg-white px-3 py-1.5 text-xs font-semibold text-ink/70 hover:border-clay/40 disabled:opacity-40"
           >
             {s}
           </button>
@@ -100,7 +194,7 @@ export default function KitchenAssistant() {
       <form
         onSubmit={(e) => {
           e.preventDefault()
-          send(draft)
+          void send(draft)
         }}
         className="mt-auto flex gap-2 px-5 pt-2"
       >
@@ -108,12 +202,13 @@ export default function KitchenAssistant() {
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Ask about dinner…"
-          className="flex-1 rounded-xl border border-ink/15 bg-white px-4 py-2.5 text-sm outline-none focus:border-clay"
+          disabled={sending}
+          className="flex-1 rounded-xl border border-ink/15 bg-white px-4 py-2.5 text-sm outline-none focus:border-clay disabled:opacity-60"
         />
         <button
           type="submit"
           className="rounded-xl bg-clay px-4 text-sm font-bold text-white shadow-soft disabled:opacity-40"
-          disabled={!draft.trim()}
+          disabled={!draft.trim() || sending}
         >
           Send
         </button>
